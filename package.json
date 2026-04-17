@@ -3,9 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "db:start": "sh ./scripts/dev-db-start.sh",
+    "db:stop": "sh ./scripts/dev-db-stop.sh",
+    "db:reset": "sh ./scripts/dev-db-reset.sh",
+    "db:seed": "node ./prisma/seed.js",
+    "db:studio": "sh ./scripts/dev-db-studio.sh",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
+  },
+  "prisma": {
+    "seed": "node ./prisma/seed.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
