@@ -26,6 +26,7 @@ model Application {
   jobLink   String?
   location  String?
   status    String   @default("Applied")
+  interviewRounds String[] @default([])
   appliedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   notes     Note[]
@@ -35,6 +36,7 @@ model Note {
   id            String      @id @default(cuid())
   applicationId String
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  stage         String?
   content       String
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt

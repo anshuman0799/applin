@@ -1,5 +1,16 @@
 import type { Metadata } from "next";
+import { Manrope, Newsreader } from "next/font/google";
 import "./globals.css";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+});
+
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+});
 
 export const metadata: Metadata = {
   title: "Applin — AI-Powered Job Tracker",
@@ -12,9 +23,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+    <html
+      lang="en"
+      className={`h-full antialiased ${manrope.variable} ${newsreader.variable}`}
+    >
+      <body className="min-h-full font-sans">{children}</body>
     </html>
   );
 }
-

@@ -1,9 +1,24 @@
 export interface Note {
   id: string;
   applicationId: string;
+  stage?: string | null;
   content: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type ApplicationStage =
+  | "Applied"
+  | "Screening"
+  | "Interview"
+  | "Withdrawn"
+  | "Rejected"
+  | "Accepted";
+
+export interface StageDefinition {
+  id: ApplicationStage;
+  label: string;
+  description: string;
 }
 
 export interface Application {
@@ -14,6 +29,7 @@ export interface Application {
   jobLink?: string | null;
   location?: string | null;
   status: string;
+  interviewRounds: string[];
   appliedAt: Date;
   updatedAt: Date;
 }

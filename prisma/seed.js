@@ -49,6 +49,69 @@ async function main() {
   const name = process.env.SEED_USER_NAME || "Postman Tester";
   const hashedPassword = await bcrypt.hash(password, 12);
 
+  const defaultApplications = [
+    {
+      company: "OpenAI",
+      role: "Software Engineer",
+      jobLink: "https://example.com/jobs/openai-se",
+      location: "San Francisco, CA",
+      status: "Interview",
+      interviewRounds: ["Recruiter Screen", "Round 1", "Round 2"],
+      notes: [
+        { content: "Recruiter call complete. Waiting on onsite schedule." },
+      ],
+    },
+    {
+      company: "Anthropic",
+      role: "Forward Deployed Engineer",
+      jobLink: "https://example.com/jobs/anthropic-fde",
+      location: "San Francisco, CA",
+      status: "Applied",
+      interviewRounds: [],
+      notes: [
+        { content: "Submitted through careers page with referral attached." },
+      ],
+    },
+    {
+      company: "Example Corp",
+      role: "Product Engineer",
+      jobLink: "https://example.com/jobs/product-engineer",
+      location: "Remote",
+      status: "Screening",
+      interviewRounds: [],
+      notes: [
+        { content: "Application submitted through company careers page." },
+      ],
+    },
+    {
+      company: "Northstar AI",
+      role: "Platform Engineer",
+      jobLink: "https://example.com/jobs/platform-engineer",
+      location: "New York, NY",
+      status: "Rejected",
+      interviewRounds: [],
+      notes: [{ content: "Received rejection after hiring manager review." }],
+    },
+    {
+      company: "Studio Labs",
+      role: "Frontend Engineer",
+      jobLink: "https://example.com/jobs/frontend-engineer",
+      location: "Remote",
+      status: "Accepted",
+      interviewRounds: ["Recruiter Screen", "Panel", "Final"],
+      notes: [{ content: "Offer accepted. Start date under discussion." }],
+    },
+    {
+      company: "Orbit Systems",
+      role: "Backend Engineer",
+      jobLink: "https://example.com/jobs/backend-engineer",
+      location: "Austin, TX",
+      status: "Withdrawn",
+      interviewRounds: [],
+      notes: [{ content: "Withdrew after accepting another opportunity." }],
+    },
+  ];
+
   const user = await db.user.upsert({
     where: { email },
     update: {
@@ -64,50 +127,39 @@ async function main() {
 
   await db.application.deleteMany({ where: { userId: user.id } });
 
-  const applicationOne = await db.application.create({
-    data: {
-      userId: user.id,
-      company: "OpenAI",
-      role: "Software Engineer",
-      jobLink: "https://example.com/jobs/openai-se",
-      location: "San Francisco, CA",
-      status: "Interview Round 2",
-      notes: {
-        create: [
-          {
-            content: "Recruiter call complete. Waiting on onsite schedule.",
-          },
-        ],
-      },
-    },
-    include: { notes: true },
-  });
+  const applications = [];
 
-  const applicationTwo = await db.application.create({
-    data: {
-      userId: user.id,
-      company: "Example Corp",
-      role: "Product Engineer",
-      jobLink: "https://example.com/jobs/product-engineer",
-      location: "Remote",
-      status: "Screening",
-      notes: {
-        create: [
-          {
-            content: "Application submitted through company careers page.",
-          },
-        ],
+  for (const application of defaultApplications) {
+    const createdApplication = await db.application.create({
+      data: {
+        userId: user.id,
+        company: application.company,
+        role: application.role,
+        jobLink: application.jobLink,
+        location: application.location,
+        status: application.status,
+        interviewRounds: application.interviewRounds,
+        notes: {
+          create: application.notes,
+        },
       },
-    },
-    include: { notes: true },
-  });
+      include: { notes: true },
+    });
+
+    applications.push(createdApplication);
+  }
 
   console.log("Seed complete");
   console.log(`Email: ${email}`);
   console.log(`Password: ${password}`);
-  console.log(`Application IDs: ${applicationOne.id}, ${applicationTwo.id}`);
+  console.log(`Seeded applications: ${applications.length}`);
   console.log(
-    `Note IDs: ${applicationOne.notes[0].id}, ${applicationTwo.notes[0].id}`,
+    `Application IDs: ${applications.map((application) => application.id).join(", ")}`,
+  );
+  console.log(
+    `Note IDs: ${applications
+      .flatMap((application) => application.notes.map((note) => note.id))
+      .join(", ")}`,
   );
 }
 

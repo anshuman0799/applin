@@ -53,10 +53,35 @@ Fill in the values in `.env.local`:
 ### 4. Run database migrations
 
 ```bash
-npx prisma migrate dev --name init
+pnpm prisma migrate dev
 ```
 
-### 5. Start the development server
+### 5. Seed the default demo data
+
+```bash
+pnpm db:seed
+```
+
+This creates a default local user you can sign in with:
+
+| Field        | Value                        |
+| ------------ | ---------------------------- |
+| Email        | `postman-tester@example.com` |
+| Password     | `testpass123`                |
+| Display name | `Postman Tester`             |
+
+Default seeded applications:
+
+| Company       | Role                      | Stage     | Notes                       |
+| ------------- | ------------------------- | --------- | --------------------------- |
+| OpenAI        | Software Engineer         | Interview | Includes 3 interview rounds |
+| Anthropic     | Forward Deployed Engineer | Applied   | Fresh application           |
+| Example Corp  | Product Engineer          | Screening | Recruiter pipeline          |
+| Northstar AI  | Platform Engineer         | Rejected  | Closed by company           |
+| Studio Labs   | Frontend Engineer         | Accepted  | Offer accepted              |
+| Orbit Systems | Backend Engineer          | Withdrawn | Closed by user              |
+
+### 6. Start the development server
 
 ```bash
 pnpm dev
@@ -117,19 +142,18 @@ applin/
 
 ---
 
-## Application Statuses
+## Application Pipeline
 
-Application statuses are free-form strings.
+The app uses six default stages in this order:
 
-Examples:
+1. `Applied`
+2. `Screening`
+3. `Interview`
+4. `Withdrawn`
+5. `Rejected`
+6. `Accepted`
 
-- `Applied`
-- `Screening`
-- `Interview Round 1`
-- `Interview Round 2`
-- `Offer`
-- `Rejected`
-- `Withdrawn`
+`Interview` supports multiple internal rounds that can be added, renamed, reordered, and deleted in the UI.
 
 ---
 
