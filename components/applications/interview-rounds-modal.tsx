@@ -36,8 +36,7 @@ export function InterviewRoundsModal({
               {application.company} · {application.role}
             </h2>
             <p className="mt-2 text-sm text-stone-600">
-              Rename rounds directly, drag them into order, and the last round
-              becomes the current round shown on the board.
+              Rename rounds directly and drag them into order.
             </p>
           </div>
 
@@ -61,7 +60,10 @@ export function InterviewRoundsModal({
           </span>
           <span className="text-sm text-stone-500">
             Current round:{" "}
-            {getCurrentInterviewRound(application.interviewRounds)}
+            {getCurrentInterviewRound(
+              application.interviewRounds,
+              application.status,
+            )}
           </span>
         </div>
 

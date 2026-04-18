@@ -71,6 +71,7 @@ export function ApplicationCreateForm({ compact = false }: Props) {
           <span className="font-medium">Location</span>
           <input
             name="location"
+            required
             className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             placeholder="Remote"
           />
@@ -80,6 +81,7 @@ export function ApplicationCreateForm({ compact = false }: Props) {
           <input
             name="jobLink"
             type="url"
+            required
             className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             placeholder="https://company.com/jobs/role"
           />

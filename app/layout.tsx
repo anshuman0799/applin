@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Newsreader } from "next/font/google";
+import { ToastProvider } from "@/components/ui/toast-provider";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -27,7 +28,9 @@ export default function RootLayout({
       lang="en"
       className={`h-full antialiased ${manrope.variable} ${newsreader.variable}`}
     >
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

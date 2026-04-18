@@ -80,8 +80,7 @@ export function InterviewRoundsEditor({
             </p>
             {!compact ? (
               <p className="text-sm text-stone-600">
-                Drag to reorder. The right-most round is treated as the current
-                one and will show on the board.
+                Drag to reorder interview rounds.
               </p>
             ) : null}
           </div>
@@ -105,7 +104,7 @@ export function InterviewRoundsEditor({
               Interview section
             </p>
             <p className="mt-1 text-xs text-amber-900/80">
-              Current round: {getCurrentInterviewRound(items)}
+              Last round in order: {getCurrentInterviewRound(items)}
             </p>
           </div>
 

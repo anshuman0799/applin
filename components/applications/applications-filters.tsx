@@ -98,6 +98,7 @@ export function ApplicationsFilters({
   }, [draftSearch, search]);
 
   const allowedStages = getAllowedStagesForCategory(draftCategory);
+  const allowedStageSet = new Set<string>(allowedStages as string[]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.1fr_repeat(4,minmax(0,1fr))]">
@@ -150,7 +151,7 @@ export function ApplicationsFilters({
         >
           <option value="all">All allowed stages</option>
           {DEFAULT_APPLICATION_STAGES.filter((stage) =>
-            allowedStages.includes(stage.id),
+            allowedStageSet.has(stage.id),
           ).map((stage) => (
             <option key={stage.id} value={stage.id}>
               {stage.label}

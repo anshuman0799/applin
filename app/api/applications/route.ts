@@ -1,24 +1,38 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { DEFAULT_SINGLE_INTERVIEW_ROUND_NAME } from "@/lib/utils";
+import {
+  DEFAULT_SINGLE_INTERVIEW_ROUND_NAME,
+  getInterviewRoundIndexFromStatus,
+  normalizeApplicationStatus,
+} from "@/lib/utils";
 import { createApplicationSchema } from "@/lib/validations/application";
 
 function normalizeApplicationInput(
   data: ReturnType<typeof createApplicationSchema.parse>,
 ) {
   const status = data.status ?? "Applied";
+  const normalizedStatus = normalizeApplicationStatus(status);
   const interviewRounds =
-    status === "Interview"
+    normalizedStatus === "Interview"
       ? data.interviewRounds && data.interviewRounds.length > 0
         ? data.interviewRounds
         : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME]
       : [];
 
+  const clampedStatus =
+    normalizedStatus === "Interview"
+      ? `Interview:${getInterviewRoundIndexFromStatus(status, interviewRounds.length) + 1}`
+      : status;
+
   return {
     ...data,
-    status,
+    status: clampedStatus,
     interviewRounds,
+    recruiterName: data.recruiterName?.trim() || null,
+    recruiterEmail: data.recruiterEmail || null,
+    recruiterPhone: data.recruiterPhone?.trim() || null,
+    recruiterSocial: data.recruiterSocial || null,
   };
 }
 

@@ -79,6 +79,7 @@ export default async function ApplicationsListPage({
       eyebrow="Applications index"
       title="A filterable list for every role in one place"
       description="Use category, stage, date, and search filters to slice your pipeline without losing access to the full dossier view."
+      compactHeader
     >
       <main className="space-y-6">
         <section className="rounded-[1.9rem] border border-white/70 bg-white/90 p-6 shadow-[0_24px_60px_rgba(87,83,78,0.1)]">

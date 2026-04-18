@@ -7,7 +7,9 @@ import {
   DEFAULT_APPLICATION_STAGES,
   formatRelativeDate,
   getApplicationStageLabel,
+  normalizeApplicationStatus,
   normalizeInterviewRounds,
+  REJECTED_WITHDRAWN_STAGE,
   toneFromStatus,
 } from "@/lib/utils";
 import { InterviewRoundsModal } from "@/components/applications/interview-rounds-modal";
@@ -60,7 +62,7 @@ export function PipelineBoard({
       return;
     }
 
-    if (application.status === "Interview") {
+    if (normalizeApplicationStatus(application.status) === "Interview") {
       setSelectedInterviewApplicationId(application.id);
       return;
     }
@@ -72,7 +74,12 @@ export function PipelineBoard({
     <div className="space-y-4">
       <div className="overflow-x-auto rounded-[1.9rem] border border-white/70 bg-white/80 p-3 shadow-[0_24px_60px_rgba(87,83,78,0.1)] backdrop-blur lg:overflow-x-visible">
         <div className="min-w-[1060px] space-y-2 lg:min-w-0">
-          <div className="grid grid-cols-[220px_repeat(6,minmax(120px,1fr))] gap-2 px-1">
+          <div
+            className="grid gap-2 px-1"
+            style={{
+              gridTemplateColumns: `220px repeat(${DEFAULT_APPLICATION_STAGES.length}, minmax(120px, 1fr))`,
+            }}
+          >
             <div className="px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-400">
               Application
             </div>
@@ -81,7 +88,14 @@ export function PipelineBoard({
                 key={stage.id}
                 className="rounded-2xl bg-stone-100/80 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-500"
               >
-                {stage.label}
+                {stage.id === REJECTED_WITHDRAWN_STAGE ? (
+                  <span className="flex flex-col leading-tight">
+                    <span>Rejected</span>
+                    <span>/ Withdrawn</span>
+                  </span>
+                ) : (
+                  stage.label
+                )}
               </div>
             ))}
           </div>
@@ -89,7 +103,10 @@ export function PipelineBoard({
           {applications.map((application) => (
             <div
               key={application.id}
-              className="grid grid-cols-[220px_repeat(6,minmax(120px,1fr))] gap-2"
+              className="grid gap-2"
+              style={{
+                gridTemplateColumns: `220px repeat(${DEFAULT_APPLICATION_STAGES.length}, minmax(120px, 1fr))`,
+              }}
             >
               <button
                 type="button"
@@ -111,7 +128,8 @@ export function PipelineBoard({
               </button>
 
               {DEFAULT_APPLICATION_STAGES.map((stage) => {
-                const isCurrent = application.status === stage.id;
+                const isCurrent =
+                  normalizeApplicationStatus(application.status) === stage.id;
                 const interviewRounds = Array.isArray(
                   application.interviewRounds,
                 )
@@ -155,7 +173,8 @@ export function PipelineBoard({
                             {application._count.notes} notes attached
                           </p>
                         </div>
-                        {application.status === "Interview" ? (
+                        {normalizeApplicationStatus(application.status) ===
+                        "Interview" ? (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {normalizeInterviewRounds(interviewRounds).map(
                               (round) => (

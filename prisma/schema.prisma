@@ -25,6 +25,10 @@ model Application {
   role      String
   jobLink   String?
   location  String?
+  recruiterName   String?
+  recruiterEmail  String?
+  recruiterPhone  String?
+  recruiterSocial String?
   status    String   @default("Applied")
   interviewRounds String[] @default([])
   appliedAt DateTime @default(now())

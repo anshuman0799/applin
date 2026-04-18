@@ -38,7 +38,7 @@ export function DeleteApplicationButton({
             router.refresh();
           });
         }}
-        className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-2xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isPending ? "Deleting..." : "Delete application"}
       </button>

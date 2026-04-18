@@ -3,7 +3,7 @@ import { z } from "zod";
 const noteStageSchema = z
   .string()
   .regex(
-    /^(Applied|Screening|Withdrawn|Rejected|Accepted|Interview(?::[1-6])?)$/,
+    /^(Applied|Screening|Rejected\/Withdrawn|Withdrawn|Rejected|Accepted|Interview(?::[1-6])?)$/,
     "Invalid stage",
   );
 

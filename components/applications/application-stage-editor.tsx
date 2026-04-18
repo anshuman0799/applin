@@ -8,9 +8,11 @@ import {
   DEFAULT_APPLICATION_STAGES,
   expandInterviewRounds,
   formatDate,
-  getApplicationStageLabel,
+  getInterviewRoundIndexFromStatus,
+  isInterviewStatus,
+  normalizeApplicationStatus,
   normalizeInterviewRounds,
-  toneFromStatus,
+  REJECTED_WITHDRAWN_STAGE,
 } from "@/lib/utils";
 
 const MAX_INTERVIEW_ROUNDS = 6;
@@ -20,6 +22,10 @@ function getInterviewStageKey(index: number) {
 }
 
 function getStageBase(stageKey: string) {
+  if (stageKey === "Rejected" || stageKey === "Withdrawn") {
+    return REJECTED_WITHDRAWN_STAGE;
+  }
+
   return stageKey.startsWith("Interview:") ? "Interview" : stageKey;
 }
 
@@ -27,6 +33,13 @@ function matchesStageKey(
   noteStage: string | null | undefined,
   stageKey: string,
 ) {
+  if (
+    stageKey === REJECTED_WITHDRAWN_STAGE &&
+    (noteStage === "Rejected" || noteStage === "Withdrawn")
+  ) {
+    return true;
+  }
+
   if (noteStage === stageKey) {
     return true;
   }
@@ -47,6 +60,19 @@ function getStageNotesTitle(stageKey: string) {
   return `Interview Round ${round} notes`;
 }
 
+function renderStageLabel(label: string) {
+  if (label !== REJECTED_WITHDRAWN_STAGE) {
+    return label;
+  }
+
+  return (
+    <>
+      <span>Rejected</span>
+      <span>/ Withdrawn</span>
+    </>
+  );
+}
+
 export function ApplicationStageEditor({
   application,
 }: {
@@ -60,14 +86,18 @@ export function ApplicationStageEditor({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState("");
   const interviewRounds = normalizeInterviewRounds(application.interviewRounds);
+  const initialInterviewRoundIndex = getInterviewRoundIndexFromStatus(
+    application.status,
+    interviewRounds.length,
+  );
   const [draftInterviewRounds, setDraftInterviewRounds] =
     useState(interviewRounds);
   const [selectedInterviewRoundIndex, setSelectedInterviewRoundIndex] =
-    useState(interviewRounds.length - 1);
+    useState(initialInterviewRoundIndex);
   const [selectedStageKey, setSelectedStageKey] = useState(
-    application.status === "Interview"
-      ? getInterviewStageKey(interviewRounds.length - 1)
-      : application.status,
+    isInterviewStatus(application.status)
+      ? getInterviewStageKey(initialInterviewRoundIndex)
+      : normalizeApplicationStatus(application.status),
   );
   const [isNotesPanelOpen, setIsNotesPanelOpen] = useState(false);
 
@@ -75,20 +105,12 @@ export function ApplicationStageEditor({
     (stage) => stage.id === "Applied" || stage.id === "Screening",
   );
   const trailingStages = DEFAULT_APPLICATION_STAGES.filter(
-    (stage) =>
-      stage.id === "Withdrawn" ||
-      stage.id === "Rejected" ||
-      stage.id === "Accepted",
+    (stage) => stage.id === REJECTED_WITHDRAWN_STAGE || stage.id === "Accepted",
   );
 
-  const pipelineTileCount =
-    leadingStages.length + draftInterviewRounds.length + trailingStages.length;
-  const isDense = pipelineTileCount > 6;
-  const isVeryDense = pipelineTileCount > 8;
-
-  const tileRadiusClass = isDense ? "rounded-2xl" : "rounded-3xl";
-  const tilePaddingClass = isVeryDense ? "p-3" : isDense ? "p-3.5" : "p-4";
-  const titleClass = isVeryDense ? "text-[11px]" : "text-xs";
+  const tileRadiusClass = "rounded-3xl";
+  const tilePaddingClass = "px-4 py-4";
+  const titleClass = "text-xs";
 
   const selectedStageBase = getStageBase(selectedStageKey);
   const selectedStageDefinition =
@@ -96,16 +118,19 @@ export function ApplicationStageEditor({
       (stage) => stage.id === selectedStageBase,
     ) ?? DEFAULT_APPLICATION_STAGES[0];
   const selectedStageNotesTitle = getStageNotesTitle(selectedStageKey);
-  const currentStageKey =
-    application.status === "Interview"
-      ? getInterviewStageKey(selectedInterviewRoundIndex)
-      : application.status;
+  const currentStageKey = isInterviewStatus(application.status)
+    ? getInterviewStageKey(
+        getInterviewRoundIndexFromStatus(
+          application.status,
+          draftInterviewRounds.length,
+        ),
+      )
+    : normalizeApplicationStatus(application.status);
   const currentStageOptions = [
     "Applied",
     "Screening",
     ...draftInterviewRounds.map((_, index) => getInterviewStageKey(index)),
-    "Withdrawn",
-    "Rejected",
+    REJECTED_WITHDRAWN_STAGE,
     "Accepted",
   ];
 
@@ -116,6 +141,34 @@ export function ApplicationStageEditor({
       ),
     [application.notes, selectedStageKey],
   );
+
+  const stageNoteCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    function bump(stageKey: string) {
+      counts.set(stageKey, (counts.get(stageKey) ?? 0) + 1);
+    }
+
+    for (const note of application.notes) {
+      if (!note.stage) {
+        continue;
+      }
+
+      if (note.stage === "Rejected" || note.stage === "Withdrawn") {
+        bump(REJECTED_WITHDRAWN_STAGE);
+        continue;
+      }
+
+      if (note.stage === "Interview") {
+        bump("Interview:1");
+        continue;
+      }
+
+      bump(note.stage);
+    }
+
+    return counts;
+  }, [application.notes]);
 
   useEffect(() => {
     const nextInterviewRounds = normalizeInterviewRounds(
@@ -151,13 +204,22 @@ export function ApplicationStageEditor({
   }, [draftInterviewRounds.length]);
 
   useEffect(() => {
+    const nextInterviewRounds = normalizeInterviewRounds(
+      application.interviewRounds,
+    );
+    const nextInterviewRoundIndex = getInterviewRoundIndexFromStatus(
+      application.status,
+      nextInterviewRounds.length,
+    );
+
+    setSelectedInterviewRoundIndex(nextInterviewRoundIndex);
     setSelectedStageKey(
-      application.status === "Interview"
-        ? getInterviewStageKey(interviewRounds.length - 1)
-        : application.status,
+      isInterviewStatus(application.status)
+        ? getInterviewStageKey(nextInterviewRoundIndex)
+        : normalizeApplicationStatus(application.status),
     );
     setIsNotesPanelOpen(false);
-  }, [application.id]);
+  }, [application.id, application.interviewRounds, application.status]);
 
   useEffect(() => {
     if (!selectedStageKey.startsWith("Interview:")) {
@@ -173,7 +235,11 @@ export function ApplicationStageEditor({
         return "border-emerald-100 bg-emerald-50/70 text-emerald-900 hover:bg-emerald-100/80";
       }
 
-      if (status === "Rejected" || status === "Withdrawn") {
+      if (
+        status === REJECTED_WITHDRAWN_STAGE ||
+        status === "Rejected" ||
+        status === "Withdrawn"
+      ) {
         return "border-rose-100 bg-rose-50/70 text-rose-900 hover:bg-rose-100/80";
       }
 
@@ -192,7 +258,11 @@ export function ApplicationStageEditor({
       return "border-emerald-200 bg-emerald-100 text-emerald-950 shadow-[0_14px_30px_rgba(16,185,129,0.12)]";
     }
 
-    if (status === "Rejected" || status === "Withdrawn") {
+    if (
+      status === REJECTED_WITHDRAWN_STAGE ||
+      status === "Rejected" ||
+      status === "Withdrawn"
+    ) {
       return "border-rose-200 bg-rose-100 text-rose-950 shadow-[0_14px_30px_rgba(244,63,94,0.10)]";
     }
 
@@ -213,7 +283,9 @@ export function ApplicationStageEditor({
         label:
           status === "Accepted"
             ? "text-emerald-700/80"
-            : status === "Rejected" || status === "Withdrawn"
+            : status === REJECTED_WITHDRAWN_STAGE ||
+                status === "Rejected" ||
+                status === "Withdrawn"
               ? "text-rose-700/80"
               : status === "Screening"
                 ? "text-sky-700/80"
@@ -227,7 +299,11 @@ export function ApplicationStageEditor({
       return { label: "text-emerald-800/80" };
     }
 
-    if (status === "Rejected" || status === "Withdrawn") {
+    if (
+      status === REJECTED_WITHDRAWN_STAGE ||
+      status === "Rejected" ||
+      status === "Withdrawn"
+    ) {
       return { label: "text-rose-800/80" };
     }
 
@@ -269,21 +345,35 @@ export function ApplicationStageEditor({
   }
 
   function viewStage(status: string) {
+    if (selectedStageKey === status && isNotesPanelOpen) {
+      setIsNotesPanelOpen(false);
+      return;
+    }
+
     setSelectedStageKey(status);
     setIsNotesPanelOpen(true);
   }
 
   function viewInterviewRound(index: number) {
     const stageKey = getInterviewStageKey(index);
+
+    if (selectedStageKey === stageKey && isNotesPanelOpen) {
+      setSelectedInterviewRoundIndex(index);
+      setIsNotesPanelOpen(false);
+      return;
+    }
+
     setSelectedInterviewRoundIndex(index);
     setSelectedStageKey(stageKey);
     setIsNotesPanelOpen(true);
   }
 
   function updateCurrentStage(stageKey: string) {
-    const nextStatus = getStageBase(stageKey);
+    const nextStatus = stageKey.startsWith("Interview:")
+      ? stageKey
+      : getStageBase(stageKey);
 
-    if (nextStatus === "Interview") {
+    if (nextStatus.startsWith("Interview:")) {
       const nextInterviewRoundIndex = Number(stageKey.split(":")[1] ?? "1") - 1;
       setSelectedInterviewRoundIndex(
         Math.max(
@@ -293,7 +383,7 @@ export function ApplicationStageEditor({
       );
     }
 
-    if (nextStatus === application.status) {
+    if (nextStatus === currentStageKey) {
       return;
     }
 
@@ -345,8 +435,7 @@ export function ApplicationStageEditor({
 
   const canAddInterviewRound =
     draftInterviewRounds.length < MAX_INTERVIEW_ROUNDS;
-  const shouldShowNotesPanel =
-    isNotesPanelOpen || selectedStageNotes.length > 0;
+  const shouldShowNotesPanel = isNotesPanelOpen;
   const stageHeading = selectedStageNotesTitle.replace(/ notes$/, "");
 
   function getViewedStageClass(status: string, isViewed: boolean) {
@@ -366,7 +455,11 @@ export function ApplicationStageEditor({
       return "border-2 border-emerald-600";
     }
 
-    if (status === "Rejected" || status === "Withdrawn") {
+    if (
+      status === REJECTED_WITHDRAWN_STAGE ||
+      status === "Rejected" ||
+      status === "Withdrawn"
+    ) {
       return "border-2 border-rose-600";
     }
 
@@ -381,23 +474,22 @@ export function ApplicationStageEditor({
     return "border-2 border-stone-700";
   }
 
+  function getStageNoteCount(stageKey: string) {
+    return stageNoteCounts.get(stageKey) ?? 0;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <div>
+        <div className="space-y-1">
           <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
-            Stage lane
+            Pipeline
+          </p>
+          <p className="text-sm text-stone-500">
+            Click any stage to open or close its notes.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span
-            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ${toneFromStatus(application.status)}`}
-          >
-            {getApplicationStageLabel(
-              application.status,
-              application.interviewRounds,
-            )}
-          </span>
           <label className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-600">
             <span className="uppercase tracking-[0.18em] text-stone-400">
               Current stage
@@ -420,28 +512,31 @@ export function ApplicationStageEditor({
       </div>
 
       <div className="rounded-[1.75rem] border border-stone-200/80 bg-stone-50/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-        <div
-          className="grid w-full items-stretch gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${pipelineTileCount}, minmax(0, 1fr))`,
-          }}
-        >
+        <div className="flex flex-wrap items-stretch gap-3">
           {leadingStages.map((stage) => {
-            const isCurrent = application.status === stage.id;
+            const isCurrent =
+              normalizeApplicationStatus(application.status) === stage.id;
             const isSelected = selectedStageKey === stage.id;
             const textTone = getTileTextTone(stage.id, isCurrent);
+            const noteCount = getStageNoteCount(stage.id);
 
             return (
-              <div key={stage.id} className="relative min-w-0">
+              <div
+                key={stage.id}
+                className="relative min-w-[150px] flex-1 basis-[150px]"
+              >
                 <button
                   type="button"
                   onClick={() => viewStage(stage.id)}
-                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[148px] w-full min-w-0 items-center justify-center border text-center transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
+                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[140px] w-full min-w-0 flex-col justify-between border text-left transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
                 >
                   <p
-                    className={`${titleClass} uppercase tracking-[0.18em] ${textTone.label}`}
+                    className={`${titleClass} flex flex-col items-start uppercase tracking-[0.18em] ${textTone.label}`}
                   >
-                    {stage.label}
+                    {renderStageLabel(stage.label)}
+                  </p>
+                  <p className="text-[11px] font-medium text-stone-500">
+                    {noteCount} note{noteCount === 1 ? "" : "s"}
                   </p>
                 </button>
               </div>
@@ -457,28 +552,37 @@ export function ApplicationStageEditor({
             );
             const hasMultipleRounds = draftInterviewRounds.length > 1;
             const isViewed = selectedStageKey === stageKey;
+            const noteCount = getStageNoteCount(stageKey);
 
             return (
-              <div key={stageKey} className="group/round relative min-w-0">
+              <div
+                key={stageKey}
+                className="group/round relative min-w-[150px] flex-1 basis-[150px]"
+              >
                 <button
                   type="button"
                   onClick={() => viewInterviewRound(index)}
-                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[148px] w-full min-w-0 flex-col items-center justify-center border text-center transition ${
+                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[140px] w-full min-w-0 flex-col justify-between border text-left transition ${
                     isCurrentRound
                       ? getTileTone("Interview", true)
                       : "border-amber-200 bg-amber-50/85 text-amber-950 hover:bg-amber-100/80"
                   } ${getCurrentStageClass("Interview", isCurrentRound)} ${getViewedStageClass("Interview", isViewed)}`}
                 >
-                  <p
-                    className={`${titleClass} uppercase tracking-[0.18em] ${interviewTextTone.label}`}
-                  >
-                    Interview
-                  </p>
-                  {hasMultipleRounds ? (
-                    <p className="mt-2 text-[11px] font-semibold tracking-[0.04em] text-amber-800/80">
-                      Round {index + 1}
+                  <div>
+                    <p
+                      className={`${titleClass} uppercase tracking-[0.18em] ${interviewTextTone.label}`}
+                    >
+                      Interview
                     </p>
-                  ) : null}
+                    {hasMultipleRounds ? (
+                      <p className="mt-2 text-[11px] font-semibold tracking-[0.04em] text-amber-800/80">
+                        Round {index + 1}
+                      </p>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] font-medium text-stone-500">
+                    {noteCount} note{noteCount === 1 ? "" : "s"}
+                  </p>
                 </button>
 
                 {draftInterviewRounds.length > 1 ? (
@@ -514,21 +618,29 @@ export function ApplicationStageEditor({
           })}
 
           {trailingStages.map((stage) => {
-            const isCurrent = application.status === stage.id;
+            const isCurrent =
+              normalizeApplicationStatus(application.status) === stage.id;
             const isSelected = selectedStageKey === stage.id;
             const textTone = getTileTextTone(stage.id, isCurrent);
+            const noteCount = getStageNoteCount(stage.id);
 
             return (
-              <div key={stage.id} className="relative min-w-0">
+              <div
+                key={stage.id}
+                className="relative min-w-[150px] flex-1 basis-[150px]"
+              >
                 <button
                   type="button"
                   onClick={() => viewStage(stage.id)}
-                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[148px] w-full min-w-0 items-center justify-center border text-center transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
+                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[140px] w-full min-w-0 flex-col justify-between border text-left transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
                 >
                   <p
-                    className={`${titleClass} uppercase tracking-[0.18em] ${textTone.label}`}
+                    className={`${titleClass} flex flex-col items-start uppercase tracking-[0.18em] ${textTone.label}`}
                   >
-                    {stage.label}
+                    {renderStageLabel(stage.label)}
+                  </p>
+                  <p className="text-[11px] font-medium text-stone-500">
+                    {noteCount} note{noteCount === 1 ? "" : "s"}
                   </p>
                 </button>
               </div>
@@ -547,6 +659,9 @@ export function ApplicationStageEditor({
               <h3 className="mt-1 text-lg font-semibold tracking-tight text-stone-950">
                 {selectedStageNotesTitle}
               </h3>
+              <p className="mt-1 text-sm text-stone-500">
+                {selectedStageDefinition.description}
+              </p>
             </div>
             <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
               {selectedStageNotes.length} note
@@ -559,13 +674,89 @@ export function ApplicationStageEditor({
               {selectedStageNotes.map((note) => (
                 <article
                   key={note.id}
-                  className="group/note rounded-3xl border border-stone-200/80 bg-stone-50/65 p-4"
+                  className="group/note rounded-3xl border border-stone-200/80 bg-stone-50/65 p-3"
                 >
-                  <div className="mb-3 flex items-center justify-end gap-3">
+                  {editingNoteId === note.id ? (
+                    <form
+                      className="space-y-3"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        setNoteError(null);
+
+                        startNotesTransition(async () => {
+                          const response = await fetch(
+                            `/api/applications/${application.id}/notes/${note.id}`,
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                content: editingNoteContent.trim(),
+                                stage: selectedStageKey,
+                              }),
+                            },
+                          );
+                          const data = (await response
+                            .json()
+                            .catch(() => null)) as {
+                            error?: string;
+                          } | null;
+
+                          if (!response.ok) {
+                            setNoteError(
+                              data?.error ?? "Could not update stage note.",
+                            );
+                            return;
+                          }
+
+                          cancelEditingNote();
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      <textarea
+                        value={editingNoteContent}
+                        onChange={(event) =>
+                          setEditingNoteContent(event.target.value)
+                        }
+                        rows={3}
+                        className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-2 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      />
+                      {noteError ? (
+                        <p className="text-sm text-rose-600">{noteError}</p>
+                      ) : null}
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="submit"
+                          disabled={
+                            isNotesPending ||
+                            editingNoteContent.trim().length === 0
+                          }
+                          className="rounded-full bg-stone-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isNotesPending ? "Saving..." : "Save note"}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50"
+                          onClick={cancelEditingNote}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="text-sm leading-7 text-stone-700">
+                      {note.content}
+                    </p>
+                  )}
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-xs text-stone-400">
+                      Updated {formatDate(note.updatedAt)}
+                    </p>
                     <div className="flex items-center gap-2 opacity-0 transition group-hover/note:opacity-100 focus-within:opacity-100">
                       <button
                         type="button"
-                        className="grid h-8 w-8 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                        className="grid h-7 w-7 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
                         aria-label="Edit note"
                         onClick={() => startEditingNote(note.id, note.content)}
                       >
@@ -585,7 +776,7 @@ export function ApplicationStageEditor({
                       </button>
                       <button
                         type="button"
-                        className="grid h-8 w-8 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                        className="grid h-7 w-7 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                         aria-label="Delete note"
                         onClick={() => {
                           setNoteError(null);
@@ -634,82 +825,6 @@ export function ApplicationStageEditor({
                       </button>
                     </div>
                   </div>
-                  {editingNoteId === note.id ? (
-                    <form
-                      className="space-y-3"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        setNoteError(null);
-
-                        startNotesTransition(async () => {
-                          const response = await fetch(
-                            `/api/applications/${application.id}/notes/${note.id}`,
-                            {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                content: editingNoteContent.trim(),
-                                stage: selectedStageKey,
-                              }),
-                            },
-                          );
-                          const data = (await response
-                            .json()
-                            .catch(() => null)) as {
-                            error?: string;
-                          } | null;
-
-                          if (!response.ok) {
-                            setNoteError(
-                              data?.error ?? "Could not update stage note.",
-                            );
-                            return;
-                          }
-
-                          cancelEditingNote();
-                          router.refresh();
-                        });
-                      }}
-                    >
-                      <textarea
-                        value={editingNoteContent}
-                        onChange={(event) =>
-                          setEditingNoteContent(event.target.value)
-                        }
-                        rows={3}
-                        className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                      />
-                      {noteError ? (
-                        <p className="text-sm text-rose-600">{noteError}</p>
-                      ) : null}
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="submit"
-                          disabled={
-                            isNotesPending ||
-                            editingNoteContent.trim().length === 0
-                          }
-                          className="rounded-full bg-stone-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isNotesPending ? "Saving..." : "Save note"}
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50"
-                          onClick={cancelEditingNote}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <p className="text-sm leading-7 text-stone-700">
-                      {note.content}
-                    </p>
-                  )}
-                  <p className="mt-3 text-xs text-stone-400">
-                    Updated {formatDate(note.updatedAt)}
-                  </p>
                 </article>
               ))}
             </div>
@@ -754,7 +869,7 @@ export function ApplicationStageEditor({
                 name="content"
                 required
                 rows={3}
-                className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-2 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 placeholder={`Add a note for ${stageHeading.toLowerCase()} stage`}
               />
               {noteError ? (

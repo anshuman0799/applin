@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { DEFAULT_SINGLE_INTERVIEW_ROUND_NAME } from "@/lib/utils";
+import {
+  DEFAULT_SINGLE_INTERVIEW_ROUND_NAME,
+  getInterviewRoundIndexFromStatus,
+  normalizeApplicationStatus,
+} from "@/lib/utils";
 import { updateApplicationSchema } from "@/lib/validations/application";
 
 function normalizeApplicationUpdate(
@@ -9,22 +13,48 @@ function normalizeApplicationUpdate(
   currentStatus: string,
   currentInterviewRounds: string[],
 ) {
+  const normalizedOptionalFields = {
+    recruiterName:
+      data.recruiterName === undefined
+        ? undefined
+        : data.recruiterName?.trim() || null,
+    recruiterEmail:
+      data.recruiterEmail === undefined
+        ? undefined
+        : data.recruiterEmail || null,
+    recruiterPhone:
+      data.recruiterPhone === undefined
+        ? undefined
+        : data.recruiterPhone?.trim() || null,
+    recruiterSocial:
+      data.recruiterSocial === undefined
+        ? undefined
+        : data.recruiterSocial || null,
+  };
   const nextStatus = data.status ?? currentStatus;
+  const normalizedNextStatus = normalizeApplicationStatus(nextStatus);
   const safeCurrentInterviewRounds = Array.isArray(currentInterviewRounds)
     ? currentInterviewRounds
     : [];
 
   if (data.interviewRounds !== undefined) {
+    const normalizedInterviewRounds =
+      data.interviewRounds.length > 0
+        ? data.interviewRounds
+        : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME];
+
     return {
       ...data,
-      interviewRounds:
-        data.interviewRounds.length > 0
-          ? data.interviewRounds
-          : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME],
+      ...normalizedOptionalFields,
+      interviewRounds: normalizedInterviewRounds,
+      status:
+        normalizeApplicationStatus(nextStatus) === "Interview"
+          ? `Interview:${getInterviewRoundIndexFromStatus(nextStatus, normalizedInterviewRounds.length) + 1}`
+          : data.status,
     };
   }
 
-  if (nextStatus === "Interview") {
+  if (normalizedNextStatus === "Interview") {
     const nextInterviewRounds =
       safeCurrentInterviewRounds.length > 0
         ? safeCurrentInterviewRounds
@@ -32,12 +62,15 @@ function normalizeApplicationUpdate(
 
     return {
       ...data,
+      ...normalizedOptionalFields,
+      status: `Interview:${getInterviewRoundIndexFromStatus(nextStatus, nextInterviewRounds.length) + 1}`,
       interviewRounds: nextInterviewRounds,
     };
   }
 
   return {
     ...data,
+    ...normalizedOptionalFields,
   };
 }
 

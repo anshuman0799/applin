@@ -2,6 +2,45 @@ export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+export const REJECTED_WITHDRAWN_STAGE = "Rejected/Withdrawn";
+
+export function isInterviewStatus(status: string) {
+  return status === "Interview" || status.startsWith("Interview:");
+}
+
+export function getInterviewRoundIndexFromStatus(
+  status: string,
+  roundCount: number,
+) {
+  if (roundCount <= 0) {
+    return 0;
+  }
+
+  if (!status.startsWith("Interview:")) {
+    return roundCount - 1;
+  }
+
+  const parsedIndex = Number(status.split(":")[1] ?? "1") - 1;
+
+  if (Number.isNaN(parsedIndex)) {
+    return roundCount - 1;
+  }
+
+  return Math.max(0, Math.min(parsedIndex, roundCount - 1));
+}
+
+export function normalizeApplicationStatus(status: string) {
+  if (isInterviewStatus(status)) {
+    return "Interview";
+  }
+
+  if (status === "Rejected" || status === "Withdrawn") {
+    return REJECTED_WITHDRAWN_STAGE;
+  }
+
+  return status;
+}
+
 export const DEFAULT_APPLICATION_STAGES = [
   {
     id: "Applied",
@@ -16,17 +55,12 @@ export const DEFAULT_APPLICATION_STAGES = [
   {
     id: "Interview",
     label: "Interview",
-    description: "Active interview loop with draggable rounds.",
+    description: "Active interview loop.",
   },
   {
-    id: "Withdrawn",
-    label: "Withdrawn",
-    description: "Closed by you.",
-  },
-  {
-    id: "Rejected",
-    label: "Rejected",
-    description: "Closed by the company.",
+    id: REJECTED_WITHDRAWN_STAGE,
+    label: REJECTED_WITHDRAWN_STAGE,
+    description: "Closed, whether by you or by the company.",
   },
   {
     id: "Accepted",
@@ -42,6 +76,7 @@ export const ACTIVE_APPLICATION_STAGES = [
 ] as const;
 
 export const INACTIVE_APPLICATION_STAGES = [
+  REJECTED_WITHDRAWN_STAGE,
   "Withdrawn",
   "Rejected",
   "Accepted",
@@ -77,21 +112,25 @@ export function normalizeStageForCategory(
     return "all";
   }
 
+  const normalizedStatus = normalizeApplicationStatus(status);
   const allowedStages = getAllowedStagesForCategory(category);
-  return allowedStages.includes(status as (typeof allowedStages)[number])
-    ? status
-    : "all";
+  const allowedStageSet = new Set<string>(allowedStages as string[]);
+  return allowedStageSet.has(normalizedStatus) ? normalizedStatus : "all";
 }
 
 export function isActiveStage(status: string) {
   return ACTIVE_APPLICATION_STAGES.includes(
-    status as (typeof ACTIVE_APPLICATION_STAGES)[number],
+    normalizeApplicationStatus(
+      status,
+    ) as (typeof ACTIVE_APPLICATION_STAGES)[number],
   );
 }
 
 export function isInactiveStage(status: string) {
   return INACTIVE_APPLICATION_STAGES.includes(
-    status as (typeof INACTIVE_APPLICATION_STAGES)[number],
+    normalizeApplicationStatus(
+      status,
+    ) as (typeof INACTIVE_APPLICATION_STAGES)[number],
   );
 }
 
@@ -99,18 +138,22 @@ export function getApplicationStageLabel(
   status: string,
   rounds: string[] = [],
 ) {
-  if (status === "Interview" && rounds.length > 0) {
+  const normalizedStatus = normalizeApplicationStatus(status);
+
+  if (normalizedStatus === "Interview" && rounds.length > 0) {
+    const safeRounds = normalizeInterviewRounds(rounds);
+
     if (
-      rounds.length === 1 &&
-      rounds[0] === DEFAULT_SINGLE_INTERVIEW_ROUND_NAME
+      safeRounds.length === 1 &&
+      safeRounds[0] === DEFAULT_SINGLE_INTERVIEW_ROUND_NAME
     ) {
-      return status;
+      return normalizedStatus;
     }
 
-    return `${status} · ${rounds[rounds.length - 1]}`;
+    return `${normalizedStatus} · ${safeRounds[getInterviewRoundIndexFromStatus(status, safeRounds.length)]}`;
   }
 
-  return status;
+  return normalizedStatus;
 }
 
 export const DEFAULT_SINGLE_INTERVIEW_ROUND_NAME = "Active Interview Loop";
@@ -183,9 +226,14 @@ export function collapseInterviewRoundsAfterDelete(
   ];
 }
 
-export function getCurrentInterviewRound(rounds: string[] | null | undefined) {
+export function getCurrentInterviewRound(
+  rounds: string[] | null | undefined,
+  status = "Interview",
+) {
   const safeRounds = normalizeInterviewRounds(rounds);
-  return safeRounds[safeRounds.length - 1];
+  return safeRounds[
+    getInterviewRoundIndexFromStatus(status, safeRounds.length)
+  ];
 }
 
 export function getNextInterviewRoundName(rounds: string[] | null | undefined) {
@@ -236,19 +284,25 @@ export function initialsFromName(name?: string | null, fallback = "A") {
 }
 
 export function toneFromStatus(status: string) {
-  if (status === "Accepted") {
+  const normalizedStatus = normalizeApplicationStatus(status);
+
+  if (normalizedStatus === "Accepted") {
     return "bg-emerald-100 text-emerald-900 ring-emerald-200";
   }
 
-  if (status === "Rejected" || status === "Withdrawn") {
+  if (
+    normalizedStatus === REJECTED_WITHDRAWN_STAGE ||
+    status === "Rejected" ||
+    status === "Withdrawn"
+  ) {
     return "bg-rose-100 text-rose-900 ring-rose-200";
   }
 
-  if (status === "Screening") {
+  if (normalizedStatus === "Screening") {
     return "bg-sky-100 text-sky-900 ring-sky-200";
   }
 
-  if (status === "Interview") {
+  if (normalizedStatus === "Interview") {
     return "bg-amber-100 text-amber-900 ring-amber-200";
   }
 

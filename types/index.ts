@@ -11,6 +11,7 @@ export type ApplicationStage =
   | "Applied"
   | "Screening"
   | "Interview"
+  | "Rejected/Withdrawn"
   | "Withdrawn"
   | "Rejected"
   | "Accepted";
@@ -28,6 +29,10 @@ export interface Application {
   role: string;
   jobLink?: string | null;
   location?: string | null;
+  recruiterName?: string | null;
+  recruiterEmail?: string | null;
+  recruiterPhone?: string | null;
+  recruiterSocial?: string | null;
   status: string;
   interviewRounds: string[];
   appliedAt: Date;

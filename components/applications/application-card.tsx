@@ -3,6 +3,7 @@ import type { ApplicationSummary } from "@/types";
 import {
   formatRelativeDate,
   getApplicationStageLabel,
+  normalizeApplicationStatus,
   normalizeInterviewRounds,
   toneFromStatus,
 } from "@/lib/utils";
@@ -16,7 +17,7 @@ export function ApplicationCard({
     ? application.interviewRounds
     : [];
   const roundsCount =
-    application.status === "Interview"
+    normalizeApplicationStatus(application.status) === "Interview"
       ? normalizeInterviewRounds(interviewRounds).length
       : interviewRounds.length;
 
