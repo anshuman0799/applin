@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  DEFAULT_SINGLE_INTERVIEW_ROUND_NAME,
   getInterviewRoundIndexFromStatus,
   normalizeApplicationStatus,
 } from "@/lib/utils";
@@ -11,22 +10,28 @@ import { createApplicationSchema } from "@/lib/validations/application";
 function normalizeApplicationInput(
   data: ReturnType<typeof createApplicationSchema.parse>,
 ) {
+  const {
+    deletedInterviewRoundIndex: _deletedInterviewRoundIndex,
+    ...safeData
+  } = data;
   const status = data.status ?? "Applied";
   const normalizedStatus = normalizeApplicationStatus(status);
   const interviewRounds =
     normalizedStatus === "Interview"
       ? data.interviewRounds && data.interviewRounds.length > 0
         ? data.interviewRounds
-        : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME]
+        : []
       : [];
 
   const clampedStatus =
     normalizedStatus === "Interview"
-      ? `Interview:${getInterviewRoundIndexFromStatus(status, interviewRounds.length) + 1}`
+      ? interviewRounds.length > 0
+        ? `Interview:${getInterviewRoundIndexFromStatus(status, interviewRounds.length) + 1}`
+        : "Interview"
       : status;
 
   return {
-    ...data,
+    ...safeData,
     status: clampedStatus,
     interviewRounds,
     recruiterName: data.recruiterName?.trim() || null,

@@ -1,7 +1,10 @@
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/breadcrumbs";
+
 type AuthPanelProps = {
   eyebrow: string;
   title: string;
   description: string;
+  breadcrumbs?: BreadcrumbItem[];
   children: React.ReactNode;
   sideTitle: string;
   sideCopy: string;
@@ -11,6 +14,7 @@ export function AuthPanel({
   eyebrow,
   title,
   description,
+  breadcrumbs,
   children,
   sideTitle,
   sideCopy,
@@ -63,6 +67,9 @@ export function AuthPanel({
         <section className="rounded-[2rem] border border-stone-200/70 bg-white/90 p-8 shadow-[0_30px_80px_rgba(86,83,75,0.12)] backdrop-blur sm:p-10 lg:p-12">
           <div className="mx-auto flex h-full max-w-md flex-col justify-center gap-8">
             <div className="space-y-3">
+              {breadcrumbs && breadcrumbs.length > 0 ? (
+                <Breadcrumbs items={breadcrumbs} variant="auth" />
+              ) : null}
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
                 {eyebrow}
               </p>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Breadcrumbs, type BreadcrumbItem } from "@/components/ui/breadcrumbs";
 import { initialsFromName } from "@/lib/utils";
 import { SignOutButton } from "@/components/sign-out-button";
 
@@ -8,9 +9,10 @@ type AppShellProps = {
     name?: string | null;
     email?: string | null;
   };
-  title?: string;
+  title?: React.ReactNode;
   eyebrow: string;
-  description?: string;
+  description?: React.ReactNode;
+  breadcrumbs?: BreadcrumbItem[];
   headerActions?: React.ReactNode;
   compactHeader?: boolean;
   children: React.ReactNode;
@@ -21,6 +23,7 @@ export function AppShell({
   title,
   eyebrow,
   description,
+  breadcrumbs,
   headerActions,
   compactHeader = false,
   children,
@@ -50,6 +53,9 @@ export function AppShell({
               </div>
 
               <div className={compactHeader ? "space-y-2" : "space-y-3"}>
+                {breadcrumbs && breadcrumbs.length > 0 ? (
+                  <Breadcrumbs items={breadcrumbs} variant="app" />
+                ) : null}
                 <p
                   className={`${compactHeader ? "text-sm tracking-[0.22em]" : "text-xs tracking-[0.28em]"} font-semibold uppercase text-sky-700`}
                 >

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 
 export default async function Home() {
   const session = await auth();
@@ -43,6 +44,7 @@ export default async function Home() {
         <main className="grid flex-1 items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="space-y-8">
             <div className="space-y-5">
+              <Breadcrumbs items={[{ label: "Home" }]} variant="landing" />
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-700">
                 Modern search workflow
               </p>

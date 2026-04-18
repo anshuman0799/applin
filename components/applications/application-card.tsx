@@ -56,7 +56,9 @@ export function ApplicationCard({
             Notes / rounds
           </p>
           <p className="mt-1 font-medium text-stone-800">
-            {application._count.notes} notes · {roundsCount} rounds
+            {application._count.notes}{" "}
+            {application._count.notes === 1 ? "note" : "notes"} · {roundsCount}{" "}
+            {roundsCount === 1 ? "round" : "rounds"}
           </p>
         </div>
       </div>

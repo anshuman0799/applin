@@ -12,6 +12,7 @@ export default async function RegisterPage() {
 
   return (
     <AuthPanel
+      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Create account" }]}
       eyebrow="Get started"
       title="Create your Applin workspace"
       description="Set up your account and start tracking openings, custom interview rounds, and notes without spreadsheet drift."

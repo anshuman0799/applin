@@ -2,17 +2,67 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  DEFAULT_SINGLE_INTERVIEW_ROUND_NAME,
   getInterviewRoundIndexFromStatus,
   normalizeApplicationStatus,
 } from "@/lib/utils";
 import { updateApplicationSchema } from "@/lib/validations/application";
+
+async function syncInterviewRoundNotesAfterDelete(params: {
+  applicationId: string;
+  deletedInterviewRoundIndex: number;
+  currentInterviewRounds: string[];
+}) {
+  const { applicationId, deletedInterviewRoundIndex, currentInterviewRounds } =
+    params;
+
+  if (
+    deletedInterviewRoundIndex < 0 ||
+    deletedInterviewRoundIndex >= currentInterviewRounds.length
+  ) {
+    return;
+  }
+
+  const deletedRoundNumber = deletedInterviewRoundIndex + 1;
+
+  await db.note.deleteMany({
+    where: {
+      applicationId,
+      OR:
+        deletedRoundNumber === 1
+          ? [
+              { stage: "Interview" },
+              { stage: `Interview:${deletedRoundNumber}` },
+            ]
+          : [{ stage: `Interview:${deletedRoundNumber}` }],
+    },
+  });
+
+  for (
+    let roundNumber = deletedRoundNumber + 1;
+    roundNumber <= currentInterviewRounds.length;
+    roundNumber += 1
+  ) {
+    await db.note.updateMany({
+      where: {
+        applicationId,
+        stage: `Interview:${roundNumber}`,
+      },
+      data: {
+        stage: `Interview:${roundNumber - 1}`,
+      },
+    });
+  }
+}
 
 function normalizeApplicationUpdate(
   data: ReturnType<typeof updateApplicationSchema.parse>,
   currentStatus: string,
   currentInterviewRounds: string[],
 ) {
+  const {
+    deletedInterviewRoundIndex: _deletedInterviewRoundIndex,
+    ...safeData
+  } = data;
   const normalizedOptionalFields = {
     recruiterName:
       data.recruiterName === undefined
@@ -38,38 +88,37 @@ function normalizeApplicationUpdate(
     : [];
 
   if (data.interviewRounds !== undefined) {
-    const normalizedInterviewRounds =
-      data.interviewRounds.length > 0
-        ? data.interviewRounds
-        : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME];
+    const normalizedInterviewRounds = data.interviewRounds;
 
     return {
-      ...data,
+      ...safeData,
       ...normalizedOptionalFields,
       interviewRounds: normalizedInterviewRounds,
       status:
         normalizeApplicationStatus(nextStatus) === "Interview"
-          ? `Interview:${getInterviewRoundIndexFromStatus(nextStatus, normalizedInterviewRounds.length) + 1}`
+          ? normalizedInterviewRounds.length > 0
+            ? `Interview:${getInterviewRoundIndexFromStatus(nextStatus, normalizedInterviewRounds.length) + 1}`
+            : "Interview"
           : data.status,
     };
   }
 
   if (normalizedNextStatus === "Interview") {
-    const nextInterviewRounds =
-      safeCurrentInterviewRounds.length > 0
-        ? safeCurrentInterviewRounds
-        : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME];
+    const nextInterviewRounds = safeCurrentInterviewRounds;
 
     return {
-      ...data,
+      ...safeData,
       ...normalizedOptionalFields,
-      status: `Interview:${getInterviewRoundIndexFromStatus(nextStatus, nextInterviewRounds.length) + 1}`,
+      status:
+        nextInterviewRounds.length > 0
+          ? `Interview:${getInterviewRoundIndexFromStatus(nextStatus, nextInterviewRounds.length) + 1}`
+          : "Interview",
       interviewRounds: nextInterviewRounds,
     };
   }
 
   return {
-    ...data,
+    ...safeData,
     ...normalizedOptionalFields,
   };
 }
@@ -144,6 +193,17 @@ export async function PATCH(
         { error: result.error.issues[0].message },
         { status: 400 },
       );
+    }
+
+    if (
+      result.data.deletedInterviewRoundIndex !== undefined &&
+      result.data.interviewRounds !== undefined
+    ) {
+      await syncInterviewRoundNotesAfterDelete({
+        applicationId: id,
+        deletedInterviewRoundIndex: result.data.deletedInterviewRoundIndex,
+        currentInterviewRounds: existing.interviewRounds,
+      });
     }
 
     const application = await db.application.update({

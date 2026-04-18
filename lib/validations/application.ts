@@ -55,6 +55,7 @@ export const createApplicationSchema = z.object({
   recruiterSocial: optionalUrlSchema,
   status: stageSchema.optional(),
   interviewRounds: z.array(z.string().min(1).max(100)).max(6).optional(),
+  deletedInterviewRoundIndex: z.number().int().min(0).max(5).optional(),
 });
 
 export const updateApplicationSchema = createApplicationSchema.partial();

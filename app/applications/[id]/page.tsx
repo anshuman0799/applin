@@ -35,7 +35,16 @@ export default async function ApplicationDetailPage({
   }
 
   return (
-    <AppShell user={user} eyebrow="Application Details" compactHeader>
+    <AppShell
+      user={user}
+      breadcrumbs={[
+        { label: "Applications", href: "/applications" },
+        { label: "List", href: "/applications/list" },
+        { label: application.company },
+      ]}
+      eyebrow="Application Details"
+      compactHeader
+    >
       <main className="flex flex-1 flex-col gap-6">
         <section className="rounded-[1.9rem] border border-white/70 bg-white/90 p-5 shadow-[0_24px_60px_rgba(87,83,78,0.1)] sm:p-6">
           <ApplicationEditForm application={application} />

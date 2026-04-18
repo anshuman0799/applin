@@ -79,10 +79,9 @@ export const INACTIVE_APPLICATION_STAGES = [
   REJECTED_WITHDRAWN_STAGE,
   "Withdrawn",
   "Rejected",
-  "Accepted",
 ] as const;
 
-export type DashboardCategory = "all" | "active" | "inactive";
+export type DashboardCategory = "all" | "active" | "inactive" | "accepted";
 
 export function getAllowedStagesForCategory(category: DashboardCategory) {
   if (category === "active") {
@@ -93,11 +92,15 @@ export function getAllowedStagesForCategory(category: DashboardCategory) {
     return [...INACTIVE_APPLICATION_STAGES];
   }
 
+  if (category === "accepted") {
+    return ["Accepted"];
+  }
+
   return DEFAULT_APPLICATION_STAGES.map((stage) => stage.id);
 }
 
 export function normalizeCategory(value?: string): DashboardCategory {
-  if (value === "active" || value === "inactive") {
+  if (value === "active" || value === "inactive" || value === "accepted") {
     return value;
   }
 
@@ -144,8 +147,8 @@ export function getApplicationStageLabel(
     const safeRounds = normalizeInterviewRounds(rounds);
 
     if (
-      safeRounds.length === 1 &&
-      safeRounds[0] === DEFAULT_SINGLE_INTERVIEW_ROUND_NAME
+      isSingleInterviewDefaultRound(safeRounds) ||
+      isSingleVisibleDefaultInterviewRound(safeRounds)
     ) {
       return normalizedStatus;
     }
@@ -156,14 +159,31 @@ export function getApplicationStageLabel(
   return normalizedStatus;
 }
 
-export const DEFAULT_SINGLE_INTERVIEW_ROUND_NAME = "Active Interview Loop";
+export const DEFAULT_SINGLE_INTERVIEW_ROUND_NAME = "Interview Round";
+export const LEGACY_SINGLE_INTERVIEW_ROUND_NAME = "Round 1";
+
+export function isSingleInterviewDefaultRound(
+  rounds: string[] | null | undefined,
+) {
+  return (
+    Array.isArray(rounds) &&
+    rounds.length === 1 &&
+    rounds[0] === LEGACY_SINGLE_INTERVIEW_ROUND_NAME
+  );
+}
+
+export function isSingleVisibleDefaultInterviewRound(
+  rounds: string[] | null | undefined,
+) {
+  return (
+    Array.isArray(rounds) &&
+    rounds.length === 1 &&
+    rounds[0] === DEFAULT_SINGLE_INTERVIEW_ROUND_NAME
+  );
+}
 
 export function normalizeInterviewRounds(rounds: string[] | null | undefined) {
-  if (!rounds || rounds.length === 0) {
-    return [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME];
-  }
-
-  return rounds;
+  return Array.isArray(rounds) ? rounds : [];
 }
 
 export function getDefaultInterviewRoundName(
@@ -180,10 +200,11 @@ export function getDefaultInterviewRoundName(
 export function expandInterviewRounds(rounds: string[] | null | undefined) {
   const safeRounds = normalizeInterviewRounds(rounds);
 
-  if (
-    safeRounds.length === 1 &&
-    safeRounds[0] === DEFAULT_SINGLE_INTERVIEW_ROUND_NAME
-  ) {
+  if (safeRounds.length === 0) {
+    return [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME];
+  }
+
+  if (isSingleInterviewDefaultRound(safeRounds)) {
     return [
       getDefaultInterviewRoundName(0, 2),
       getDefaultInterviewRoundName(1, 2),
@@ -200,30 +221,18 @@ export function sanitizeInterviewRoundNames(
   rounds: string[] | null | undefined,
 ) {
   const safeRounds = Array.isArray(rounds) ? rounds : [];
-  const targetRounds =
-    safeRounds.length > 0 ? safeRounds : [DEFAULT_SINGLE_INTERVIEW_ROUND_NAME];
+  const targetRounds = safeRounds;
   const totalCount = targetRounds.length;
 
-  return targetRounds.map((round, index) => {
-    const trimmed = round.trim();
-    return trimmed || getDefaultInterviewRoundName(index, totalCount);
-  });
+  return targetRounds.map((_, index) =>
+    getDefaultInterviewRoundName(index, totalCount),
+  );
 }
 
 export function collapseInterviewRoundsAfterDelete(
   rounds: string[] | null | undefined,
 ) {
-  const safeRounds = sanitizeInterviewRoundNames(rounds);
-
-  if (safeRounds.length !== 1) {
-    return safeRounds;
-  }
-
-  return [
-    /^Round \d+$/.test(safeRounds[0])
-      ? DEFAULT_SINGLE_INTERVIEW_ROUND_NAME
-      : safeRounds[0],
-  ];
+  return sanitizeInterviewRoundNames(rounds);
 }
 
 export function getCurrentInterviewRound(
@@ -231,6 +240,14 @@ export function getCurrentInterviewRound(
   status = "Interview",
 ) {
   const safeRounds = normalizeInterviewRounds(rounds);
+  if (
+    safeRounds.length === 0 ||
+    isSingleInterviewDefaultRound(safeRounds) ||
+    isSingleVisibleDefaultInterviewRound(safeRounds)
+  ) {
+    return null;
+  }
+
   return safeRounds[
     getInterviewRoundIndexFromStatus(status, safeRounds.length)
   ];

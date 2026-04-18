@@ -43,6 +43,10 @@ export default async function ApplicationsListPage({
     where.status = { in: [...INACTIVE_APPLICATION_STAGES] };
   }
 
+  if (category === "accepted") {
+    where.status = "Accepted";
+  }
+
   if (status !== "all") {
     where.status = status;
   }
@@ -76,9 +80,11 @@ export default async function ApplicationsListPage({
   return (
     <AppShell
       user={user}
+      breadcrumbs={[
+        { label: "Applications", href: "/applications" },
+        { label: "List" },
+      ]}
       eyebrow="Applications index"
-      title="A filterable list for every role in one place"
-      description="Use category, stage, date, and search filters to slice your pipeline without losing access to the full dossier view."
       compactHeader
     >
       <main className="space-y-6">
@@ -99,7 +105,8 @@ export default async function ApplicationsListPage({
                 Results
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
-                {applications.length} applications match this view
+                {applications.length} application
+                {applications.length === 1 ? "" : "s"} matched
               </h2>
             </div>
           </div>

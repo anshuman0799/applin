@@ -189,6 +189,20 @@ export function ApplicationEditForm({
               </button>
             ) : null}
 
+            {!isEditing && !hasRecruiterDetails ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRecruiterOpen(false);
+                  setError(null);
+                  setIsEditing(true);
+                }}
+                className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
+              >
+                Add recruiter details
+              </button>
+            ) : null}
+
             {application.jobLink ? (
               <a
                 href={application.jobLink}

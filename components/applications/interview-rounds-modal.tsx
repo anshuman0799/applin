@@ -1,11 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+import Link from "next/link";
 import type { Application } from "@/types";
-import {
-  getApplicationStageLabel,
-  getCurrentInterviewRound,
-  toneFromStatus,
-} from "@/lib/utils";
+import { getApplicationStageLabel, toneFromStatus } from "@/lib/utils";
 import { InterviewRoundsEditor } from "@/components/applications/interview-rounds-editor";
 
 type InterviewRoundsModalProps = {
@@ -17,6 +15,20 @@ export function InterviewRoundsModal({
   application,
   onClose,
 }: InterviewRoundsModalProps) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
@@ -26,7 +38,7 @@ export function InterviewRoundsModal({
         className="absolute inset-0 bg-stone-950/45 backdrop-blur-sm"
       />
 
-      <div className="relative z-10 w-full max-w-3xl rounded-4xl border border-white/60 bg-[#fbf8f1] p-6 shadow-[0_30px_90px_rgba(25,23,20,0.22)] sm:p-7">
+      <div className="relative z-10 w-full max-w-5xl rounded-4xl border border-white/60 bg-[#fbf8f1] p-6 shadow-[0_30px_90px_rgba(25,23,20,0.22)] sm:p-7">
         <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.26em] text-stone-400">
@@ -35,18 +47,24 @@ export function InterviewRoundsModal({
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
               {application.company} · {application.role}
             </h2>
-            <p className="mt-2 text-sm text-stone-600">
-              Rename rounds directly and drag them into order.
-            </p>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/applications/${application.id}`}
+              onClick={onClose}
+              className="rounded-full border border-sky-200 bg-sky-100 px-3 py-1.5 text-sm font-medium text-sky-950 transition hover:bg-sky-200"
+            >
+              Open application details
+            </Link>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -58,21 +76,13 @@ export function InterviewRoundsModal({
               application.interviewRounds,
             )}
           </span>
-          <span className="text-sm text-stone-500">
-            Current round:{" "}
-            {getCurrentInterviewRound(
-              application.interviewRounds,
-              application.status,
-            )}
-          </span>
         </div>
 
         <div className="mt-6">
           <InterviewRoundsEditor
             applicationId={application.id}
             rounds={application.interviewRounds}
-            showHeader={false}
-            minimalAddButton
+            status={application.status}
           />
         </div>
       </div>

@@ -17,6 +17,22 @@ import {
 
 const MAX_INTERVIEW_ROUNDS = 6;
 
+type ConfirmDialogState =
+  | {
+      kind: "delete-round";
+      index: number;
+      title: string;
+      message: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "delete-note";
+      noteId: string;
+      title: string;
+      message: string;
+      confirmLabel: string;
+    };
+
 function getInterviewStageKey(index: number) {
   return `Interview:${index + 1}`;
 }
@@ -60,6 +76,14 @@ function getStageNotesTitle(stageKey: string) {
   return `Interview Round ${round} notes`;
 }
 
+function getInterviewRoundLabel(index: number, roundCount: number) {
+  if (roundCount <= 1) {
+    return "Interview Round";
+  }
+
+  return `Interview Round ${index + 1}`;
+}
+
 function renderStageLabel(label: string) {
   if (label !== REJECTED_WITHDRAWN_STAGE) {
     return label;
@@ -68,9 +92,125 @@ function renderStageLabel(label: string) {
   return (
     <>
       <span>Rejected</span>
-      <span>/ Withdrawn</span>
+      <span className="whitespace-nowrap">/ Withdrawn</span>
     </>
   );
+}
+
+function getStageTileDescription(stageKey: string) {
+  if (stageKey.startsWith("Interview:")) {
+    const round = Number(stageKey.split(":")[1] ?? "1") - 1;
+    return getInterviewRoundLabel(round, Math.max(round + 1, 1));
+  }
+
+  const stageBase = getStageBase(stageKey);
+  const stageDefinition = DEFAULT_APPLICATION_STAGES.find(
+    (stage) => stage.id === stageBase,
+  );
+
+  if (!stageDefinition) {
+    return "";
+  }
+
+  return stageDefinition.description;
+}
+
+function renderStageTileIcon(stageKey: string) {
+  const stageBase = getStageBase(stageKey);
+
+  if (stageBase === "Applied") {
+    return (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4 text-stone-500/70"
+      >
+        <path
+          d="M5.75 4.25h8.5A1.5 1.5 0 0 1 15.75 5.75v8.5a1.5 1.5 0 0 1-1.5 1.5h-8.5a1.5 1.5 0 0 1-1.5-1.5v-8.5a1.5 1.5 0 0 1 1.5-1.5Z"
+          stroke="currentColor"
+          strokeWidth="1.4"
+        />
+        <path
+          d="M7.5 7.25h5M7.5 9.75h5M7.5 12.25h3"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  if (stageBase === "Screening") {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-sky-700/80">
+        <path
+          d="M4.75 13.5 8.125 10.125 10.25 12.25l5-5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M11.75 7.25h3.5v3.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (stageBase === "Interview") {
+    return (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4 text-amber-700/80"
+      >
+        <path
+          d="M10 8.2a2.7 2.7 0 1 0 0-5.4 2.7 2.7 0 0 0 0 5.4Z"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M4.6 15.7c.35-2.55 2.32-4 5.4-4 3.06 0 5.03 1.45 5.4 4"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (stageBase === REJECTED_WITHDRAWN_STAGE) {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-rose-700/80">
+        <path
+          d="M6.5 6.5 13.5 13.5M13.5 6.5l-7 7"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <circle
+          cx="10"
+          cy="10"
+          r="6.75"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        />
+      </svg>
+    );
+  }
+
+  if (stageBase === "Accepted") {
+    return <span className="text-base leading-none">🎉</span>;
+  }
+
+  return null;
 }
 
 export function ApplicationStageEditor({
@@ -100,6 +240,9 @@ export function ApplicationStageEditor({
       : normalizeApplicationStatus(application.status),
   );
   const [isNotesPanelOpen, setIsNotesPanelOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(
+    null,
+  );
 
   const leadingStages = DEFAULT_APPLICATION_STAGES.filter(
     (stage) => stage.id === "Applied" || stage.id === "Screening",
@@ -107,17 +250,33 @@ export function ApplicationStageEditor({
   const trailingStages = DEFAULT_APPLICATION_STAGES.filter(
     (stage) => stage.id === REJECTED_WITHDRAWN_STAGE || stage.id === "Accepted",
   );
+  const interviewRoundSlots =
+    draftInterviewRounds.length > 0 ? draftInterviewRounds : ["Interview"];
 
-  const tileRadiusClass = "rounded-3xl";
-  const tilePaddingClass = "px-4 py-4";
-  const titleClass = "text-xs";
+  const pipelineTileCount =
+    leadingStages.length + interviewRoundSlots.length + trailingStages.length;
+  const isDense = pipelineTileCount >= 8;
+  const isVeryDense = pipelineTileCount >= 9;
+
+  const tileRadiusClass = isDense ? "rounded-2xl" : "rounded-3xl";
+  const tilePaddingClass = isVeryDense ? "px-2.5 py-3" : "px-3 py-3.5";
+  const titleClass = isVeryDense ? "text-[10px]" : "text-[11px]";
+  const noteCountClass = isVeryDense
+    ? "text-[10px] font-medium text-stone-500"
+    : "text-[11px] font-medium text-stone-500";
+  const tileMinHeightClass = isVeryDense ? "min-h-[136px]" : "min-h-[146px]";
 
   const selectedStageBase = getStageBase(selectedStageKey);
   const selectedStageDefinition =
     DEFAULT_APPLICATION_STAGES.find(
       (stage) => stage.id === selectedStageBase,
     ) ?? DEFAULT_APPLICATION_STAGES[0];
-  const selectedStageNotesTitle = getStageNotesTitle(selectedStageKey);
+  const selectedStageNotesTitle = selectedStageKey.startsWith("Interview:")
+    ? `${getInterviewRoundLabel(
+        Number(selectedStageKey.split(":")[1] ?? "1") - 1,
+        draftInterviewRounds.length,
+      )} notes`
+    : getStageNotesTitle(selectedStageKey);
   const currentStageKey = isInterviewStatus(application.status)
     ? getInterviewStageKey(
         getInterviewRoundIndexFromStatus(
@@ -129,7 +288,7 @@ export function ApplicationStageEditor({
   const currentStageOptions = [
     "Applied",
     "Screening",
-    ...draftInterviewRounds.map((_, index) => getInterviewStageKey(index)),
+    ...interviewRoundSlots.map((_, index) => getInterviewStageKey(index)),
     REJECTED_WITHDRAWN_STAGE,
     "Accepted",
   ];
@@ -229,6 +388,24 @@ export function ApplicationStageEditor({
     setSelectedStageKey(getInterviewStageKey(selectedInterviewRoundIndex));
   }, [selectedInterviewRoundIndex]);
 
+  useEffect(() => {
+    if (!confirmDialog) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setConfirmDialog(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [confirmDialog]);
+
   function getTileTone(status: string, isCurrent: boolean) {
     if (!isCurrent) {
       if (status === "Accepted") {
@@ -251,7 +428,7 @@ export function ApplicationStageEditor({
         return "border-amber-100 bg-amber-50/75 text-amber-900 hover:bg-amber-100/80";
       }
 
-      return "border-stone-200 bg-stone-50/90 text-stone-700 hover:bg-white";
+      return "border-stone-200 bg-stone-100/90 text-stone-700 hover:bg-stone-100";
     }
 
     if (status === "Accepted") {
@@ -321,6 +498,7 @@ export function ApplicationStageEditor({
   function patchApplication(payload: {
     status?: string;
     interviewRounds?: string[];
+    deletedInterviewRoundIndex?: number;
   }) {
     setError(null);
 
@@ -406,6 +584,23 @@ export function ApplicationStageEditor({
   }
 
   function deleteInterviewRound(indexToDelete: number) {
+    const roundLabel = getInterviewRoundLabel(
+      indexToDelete,
+      draftInterviewRounds.length,
+    );
+
+    setConfirmDialog({
+      kind: "delete-round",
+      index: indexToDelete,
+      title: `Delete ${roundLabel}?`,
+      message: "This will remove the round and all notes attached to it.",
+      confirmLabel: "Delete round",
+    });
+  }
+
+  function confirmDeleteInterviewRound(indexToDelete: number) {
+    setConfirmDialog(null);
+
     const nextRounds = draftInterviewRounds.filter(
       (_, index) => index !== indexToDelete,
     );
@@ -418,7 +613,59 @@ export function ApplicationStageEditor({
     setDraftInterviewRounds(collapsedRounds);
     setSelectedInterviewRoundIndex(nextSelectedIndex);
     setSelectedStageKey(getInterviewStageKey(nextSelectedIndex));
-    patchApplication({ interviewRounds: collapsedRounds });
+    patchApplication({
+      interviewRounds: collapsedRounds,
+      deletedInterviewRoundIndex: indexToDelete,
+    });
+  }
+
+  function deleteStageNote(noteId: string) {
+    setNoteError(null);
+    setConfirmDialog({
+      kind: "delete-note",
+      noteId,
+      title: "Delete stage note?",
+      message:
+        "This note will be permanently removed from this application stage.",
+      confirmLabel: "Delete note",
+    });
+  }
+
+  function confirmDeleteStageNote(noteId: string) {
+    setConfirmDialog(null);
+
+    startNotesTransition(async () => {
+      const response = await fetch(
+        `/api/applications/${application.id}/notes/${noteId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        setNoteError("Could not delete stage note.");
+        return;
+      }
+
+      if (editingNoteId === noteId) {
+        cancelEditingNote();
+      }
+
+      router.refresh();
+    });
+  }
+
+  function handleConfirmDialogAction() {
+    if (!confirmDialog) {
+      return;
+    }
+
+    if (confirmDialog.kind === "delete-round") {
+      confirmDeleteInterviewRound(confirmDialog.index);
+      return;
+    }
+
+    confirmDeleteStageNote(confirmDialog.noteId);
   }
 
   function startEditingNote(noteId: string, content: string) {
@@ -479,418 +726,489 @@ export function ApplicationStageEditor({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
-            Pipeline
-          </p>
-          <p className="text-sm text-stone-500">
-            Click any stage to open or close its notes.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-600">
-            <span className="uppercase tracking-[0.18em] text-stone-400">
-              Current stage
-            </span>
-            <select
-              value={currentStageKey}
-              onChange={(event) => updateCurrentStage(event.target.value)}
-              className="bg-transparent text-sm font-medium text-stone-900 outline-none"
-            >
-              {currentStageOptions.map((stageKey) => (
-                <option key={stageKey} value={stageKey}>
-                  {stageKey.startsWith("Interview:")
-                    ? `Interview Round ${stageKey.split(":")[1]}`
-                    : stageKey}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="rounded-[1.75rem] border border-stone-200/80 bg-stone-50/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-        <div className="flex flex-wrap items-stretch gap-3">
-          {leadingStages.map((stage) => {
-            const isCurrent =
-              normalizeApplicationStatus(application.status) === stage.id;
-            const isSelected = selectedStageKey === stage.id;
-            const textTone = getTileTextTone(stage.id, isCurrent);
-            const noteCount = getStageNoteCount(stage.id);
-
-            return (
-              <div
-                key={stage.id}
-                className="relative min-w-[150px] flex-1 basis-[150px]"
-              >
-                <button
-                  type="button"
-                  onClick={() => viewStage(stage.id)}
-                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[140px] w-full min-w-0 flex-col justify-between border text-left transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
-                >
-                  <p
-                    className={`${titleClass} flex flex-col items-start uppercase tracking-[0.18em] ${textTone.label}`}
-                  >
-                    {renderStageLabel(stage.label)}
-                  </p>
-                  <p className="text-[11px] font-medium text-stone-500">
-                    {noteCount} note{noteCount === 1 ? "" : "s"}
-                  </p>
-                </button>
-              </div>
-            );
-          })}
-
-          {draftInterviewRounds.map((_, index) => {
-            const stageKey = getInterviewStageKey(index);
-            const isCurrentRound = currentStageKey === stageKey;
-            const interviewTextTone = getTileTextTone(
-              "Interview",
-              isCurrentRound,
-            );
-            const hasMultipleRounds = draftInterviewRounds.length > 1;
-            const isViewed = selectedStageKey === stageKey;
-            const noteCount = getStageNoteCount(stageKey);
-
-            return (
-              <div
-                key={stageKey}
-                className="group/round relative min-w-[150px] flex-1 basis-[150px]"
-              >
-                <button
-                  type="button"
-                  onClick={() => viewInterviewRound(index)}
-                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[140px] w-full min-w-0 flex-col justify-between border text-left transition ${
-                    isCurrentRound
-                      ? getTileTone("Interview", true)
-                      : "border-amber-200 bg-amber-50/85 text-amber-950 hover:bg-amber-100/80"
-                  } ${getCurrentStageClass("Interview", isCurrentRound)} ${getViewedStageClass("Interview", isViewed)}`}
-                >
-                  <div>
-                    <p
-                      className={`${titleClass} uppercase tracking-[0.18em] ${interviewTextTone.label}`}
-                    >
-                      Interview
-                    </p>
-                    {hasMultipleRounds ? (
-                      <p className="mt-2 text-[11px] font-semibold tracking-[0.04em] text-amber-800/80">
-                        Round {index + 1}
-                      </p>
-                    ) : null}
-                  </div>
-                  <p className="text-[11px] font-medium text-stone-500">
-                    {noteCount} note{noteCount === 1 ? "" : "s"}
-                  </p>
-                </button>
-
-                {draftInterviewRounds.length > 1 ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      deleteInterviewRound(index);
-                    }}
-                    className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full border border-amber-300 bg-white/95 text-[11px] font-semibold text-amber-900 shadow-sm opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 group-hover/round:opacity-100 focus:opacity-100"
-                    aria-label={`Delete interview round ${index + 1}`}
-                  >
-                    x
-                  </button>
-                ) : null}
-
-                {index === draftInterviewRounds.length - 1 &&
-                canAddInterviewRound ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      addInterviewRound();
-                    }}
-                    className="absolute -right-4 top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-amber-300 bg-white text-sm font-semibold text-amber-900 shadow-sm opacity-0 transition hover:bg-amber-50 group-hover/round:opacity-100 focus:opacity-100"
-                    aria-label="Add another interview round"
-                  >
-                    +
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-
-          {trailingStages.map((stage) => {
-            const isCurrent =
-              normalizeApplicationStatus(application.status) === stage.id;
-            const isSelected = selectedStageKey === stage.id;
-            const textTone = getTileTextTone(stage.id, isCurrent);
-            const noteCount = getStageNoteCount(stage.id);
-
-            return (
-              <div
-                key={stage.id}
-                className="relative min-w-[150px] flex-1 basis-[150px]"
-              >
-                <button
-                  type="button"
-                  onClick={() => viewStage(stage.id)}
-                  className={`${tileRadiusClass} ${tilePaddingClass} flex h-full min-h-[140px] w-full min-w-0 flex-col justify-between border text-left transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
-                >
-                  <p
-                    className={`${titleClass} flex flex-col items-start uppercase tracking-[0.18em] ${textTone.label}`}
-                  >
-                    {renderStageLabel(stage.label)}
-                  </p>
-                  <p className="text-[11px] font-medium text-stone-500">
-                    {noteCount} note{noteCount === 1 ? "" : "s"}
-                  </p>
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {shouldShowNotesPanel ? (
-        <section className="rounded-[1.75rem] border border-stone-200/80 bg-white/90 p-5 shadow-[0_20px_50px_rgba(87,83,78,0.08)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
-                Stage notes
-              </p>
-              <h3 className="mt-1 text-lg font-semibold tracking-tight text-stone-950">
-                {selectedStageNotesTitle}
-              </h3>
-              <p className="mt-1 text-sm text-stone-500">
-                {selectedStageDefinition.description}
-              </p>
-            </div>
-            <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
-              {selectedStageNotes.length} note
-              {selectedStageNotes.length === 1 ? "" : "s"}
-            </span>
+    <>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
+              Pipeline
+            </p>
+            <p className="text-sm text-stone-500">
+              Click any stage to open or close its notes.
+            </p>
           </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-600">
+              <span className="uppercase tracking-[0.18em] text-stone-400">
+                Current stage
+              </span>
+              <select
+                value={currentStageKey}
+                onChange={(event) => updateCurrentStage(event.target.value)}
+                className="bg-transparent text-sm font-medium text-stone-900 outline-none"
+              >
+                {currentStageOptions.map((stageKey) => (
+                  <option key={stageKey} value={stageKey}>
+                    {stageKey.startsWith("Interview:")
+                      ? `Interview Round ${stageKey.split(":")[1]}`
+                      : stageKey}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
 
-          <div className="mt-5 space-y-4">
-            <div className="space-y-3">
-              {selectedStageNotes.map((note) => (
-                <article
-                  key={note.id}
-                  className="group/note rounded-3xl border border-stone-200/80 bg-stone-50/65 p-3"
-                >
-                  {editingNoteId === note.id ? (
-                    <form
-                      className="space-y-3"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        setNoteError(null);
+        <div className="overflow-x-auto rounded-[1.75rem] border border-stone-200/80 bg-stone-50/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+          <div
+            className="grid min-w-[920px] items-stretch gap-2 lg:min-w-0"
+            style={{
+              gridTemplateColumns: `repeat(${pipelineTileCount}, minmax(0, 1fr))`,
+            }}
+          >
+            {leadingStages.map((stage) => {
+              const isCurrent =
+                normalizeApplicationStatus(application.status) === stage.id;
+              const isSelected = selectedStageKey === stage.id;
+              const textTone = getTileTextTone(stage.id, isCurrent);
+              const noteCount = getStageNoteCount(stage.id);
 
-                        startNotesTransition(async () => {
-                          const response = await fetch(
-                            `/api/applications/${application.id}/notes/${note.id}`,
-                            {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                content: editingNoteContent.trim(),
-                                stage: selectedStageKey,
-                              }),
-                            },
-                          );
-                          const data = (await response
-                            .json()
-                            .catch(() => null)) as {
-                            error?: string;
-                          } | null;
-
-                          if (!response.ok) {
-                            setNoteError(
-                              data?.error ?? "Could not update stage note.",
-                            );
-                            return;
-                          }
-
-                          cancelEditingNote();
-                          router.refresh();
-                        });
-                      }}
-                    >
-                      <textarea
-                        value={editingNoteContent}
-                        onChange={(event) =>
-                          setEditingNoteContent(event.target.value)
-                        }
-                        rows={3}
-                        className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-2 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                      />
-                      {noteError ? (
-                        <p className="text-sm text-rose-600">{noteError}</p>
-                      ) : null}
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="submit"
-                          disabled={
-                            isNotesPending ||
-                            editingNoteContent.trim().length === 0
-                          }
-                          className="rounded-full bg-stone-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+              return (
+                <div key={stage.id} className="relative min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => viewStage(stage.id)}
+                    className={`${tileRadiusClass} ${tilePaddingClass} ${tileMinHeightClass} flex h-full w-full min-w-0 flex-col justify-between border text-left transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className={`${titleClass} flex flex-col items-start uppercase tracking-[0.18em] ${textTone.label}`}
                         >
-                          {isNotesPending ? "Saving..." : "Save note"}
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50"
-                          onClick={cancelEditingNote}
-                        >
-                          Cancel
-                        </button>
+                          {renderStageLabel(stage.label)}
+                        </p>
+                        {renderStageTileIcon(stage.id)}
                       </div>
-                    </form>
-                  ) : (
-                    <p className="text-sm leading-7 text-stone-700">
-                      {note.content}
+                      <p className="text-xs leading-4 text-current/75">
+                        {getStageTileDescription(stage.id)}
+                      </p>
+                    </div>
+                    <p className={noteCountClass}>
+                      {noteCount} note{noteCount === 1 ? "" : "s"}
                     </p>
-                  )}
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <p className="text-xs text-stone-400">
-                      Updated {formatDate(note.updatedAt)}
-                    </p>
-                    <div className="flex items-center gap-2 opacity-0 transition group-hover/note:opacity-100 focus-within:opacity-100">
-                      <button
-                        type="button"
-                        className="grid h-7 w-7 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-                        aria-label="Edit note"
-                        onClick={() => startEditingNote(note.id, note.content)}
-                      >
-                        <svg
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          className="h-4 w-4"
-                        >
-                          <path
-                            d="M10.833 4.167 15.833 9.167M4.167 15.833l3.043-.608a2.5 2.5 0 0 0 1.276-.684l7.054-7.053a1.768 1.768 0 1 0-2.5-2.5L5.986 12.04a2.5 2.5 0 0 0-.684 1.277l-.608 2.516 2.473-.608Z"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        className="grid h-7 w-7 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                        aria-label="Delete note"
-                        onClick={() => {
-                          setNoteError(null);
-                          const confirmed = window.confirm(
-                            "Delete this stage note?",
-                          );
+                  </button>
+                </div>
+              );
+            })}
 
-                          if (!confirmed) {
-                            return;
-                          }
+            {interviewRoundSlots.map((_, index) => {
+              const stageKey = getInterviewStageKey(index);
+              const isCurrentRound = currentStageKey === stageKey;
+              const interviewTextTone = getTileTextTone(
+                "Interview",
+                isCurrentRound,
+              );
+              const isViewed = selectedStageKey === stageKey;
+              const noteCount = getStageNoteCount(stageKey);
+              const hasNotes = noteCount > 0;
+
+              return (
+                <div key={stageKey} className="group/round relative min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => viewInterviewRound(index)}
+                    className={`${tileRadiusClass} ${tilePaddingClass} ${tileMinHeightClass} flex h-full w-full min-w-0 flex-col justify-between border text-left transition ${
+                      isCurrentRound
+                        ? getTileTone("Interview", true)
+                        : "border-amber-200 bg-amber-50/85 text-amber-950 hover:bg-amber-100/80"
+                    } ${getCurrentStageClass("Interview", isCurrentRound)} ${getViewedStageClass("Interview", isViewed)}`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className={`${titleClass} uppercase tracking-[0.18em] ${interviewTextTone.label}`}
+                        >
+                          Interview
+                        </p>
+                        {hasNotes ? (
+                          <p className="text-xs leading-4 text-amber-900/75">
+                            {getInterviewRoundLabel(
+                              index,
+                              draftInterviewRounds.length,
+                            )}
+                          </p>
+                        ) : null}
+                      </div>
+                      {!hasNotes ? (
+                        <p className="text-xs leading-4 text-amber-900/55">
+                          {getInterviewRoundLabel(
+                            index,
+                            draftInterviewRounds.length,
+                          )}
+                        </p>
+                      ) : null}
+                    </div>
+                    {hasNotes ? (
+                      <p className={noteCountClass}>
+                        {noteCount} note{noteCount === 1 ? "" : "s"}
+                      </p>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2 text-xs leading-4 text-amber-900/75">
+                        <p>
+                          {getInterviewRoundLabel(
+                            index,
+                            draftInterviewRounds.length,
+                          )}
+                        </p>
+                        {renderStageTileIcon(stageKey)}
+                      </div>
+                    )}
+                  </button>
+
+                  {draftInterviewRounds.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteInterviewRound(index);
+                      }}
+                      className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full border border-amber-300 bg-white/95 text-[11px] font-semibold text-amber-900 shadow-sm opacity-0 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 group-hover/round:opacity-100 focus:opacity-100"
+                      aria-label={`Delete interview round ${index + 1}`}
+                    >
+                      x
+                    </button>
+                  ) : null}
+
+                  {index === interviewRoundSlots.length - 1 &&
+                  canAddInterviewRound ? (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        addInterviewRound();
+                      }}
+                      className="absolute -right-4 top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-amber-300 bg-white text-sm font-semibold text-amber-900 shadow-sm opacity-0 transition hover:bg-amber-50 group-hover/round:opacity-100 focus:opacity-100"
+                      aria-label="Add another interview round"
+                    >
+                      +
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+
+            {trailingStages.map((stage) => {
+              const isCurrent =
+                normalizeApplicationStatus(application.status) === stage.id;
+              const isSelected = selectedStageKey === stage.id;
+              const textTone = getTileTextTone(stage.id, isCurrent);
+              const noteCount = getStageNoteCount(stage.id);
+
+              return (
+                <div key={stage.id} className="relative min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => viewStage(stage.id)}
+                    className={`${tileRadiusClass} ${tilePaddingClass} ${tileMinHeightClass} flex h-full w-full min-w-0 flex-col justify-between border text-left transition ${getTileTone(stage.id, isCurrent)} ${getCurrentStageClass(stage.id, isCurrent)} ${getViewedStageClass(stage.id, isSelected)}`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className={`${titleClass} flex flex-col items-start uppercase tracking-[0.18em] ${textTone.label}`}
+                        >
+                          {renderStageLabel(stage.label)}
+                        </p>
+                        {renderStageTileIcon(stage.id)}
+                      </div>
+                      <p className="text-xs leading-4 text-current/75">
+                        {getStageTileDescription(stage.id)}
+                      </p>
+                    </div>
+                    <p className={noteCountClass}>
+                      {noteCount} note{noteCount === 1 ? "" : "s"}
+                    </p>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {shouldShowNotesPanel ? (
+          <section className="rounded-[1.75rem] border border-stone-200/80 bg-white/90 p-5 shadow-[0_20px_50px_rgba(87,83,78,0.08)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-stone-400">
+                  Stage notes
+                </p>
+                <h3 className="mt-1 text-lg font-semibold tracking-tight text-stone-950">
+                  {selectedStageNotesTitle}
+                </h3>
+              </div>
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600">
+                {selectedStageNotes.length} note
+                {selectedStageNotes.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="space-y-3">
+                {selectedStageNotes.map((note) => (
+                  <article
+                    key={note.id}
+                    className="group/note rounded-3xl border border-stone-200/80 bg-stone-50/65 p-3"
+                  >
+                    {editingNoteId === note.id ? (
+                      <form
+                        className="space-y-3"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          setNoteError(null);
 
                           startNotesTransition(async () => {
                             const response = await fetch(
                               `/api/applications/${application.id}/notes/${note.id}`,
                               {
-                                method: "DELETE",
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  content: editingNoteContent.trim(),
+                                  stage: selectedStageKey,
+                                }),
                               },
                             );
+                            const data = (await response
+                              .json()
+                              .catch(() => null)) as {
+                              error?: string;
+                            } | null;
 
                             if (!response.ok) {
-                              setNoteError("Could not delete stage note.");
+                              setNoteError(
+                                data?.error ?? "Could not update stage note.",
+                              );
                               return;
                             }
 
-                            if (editingNoteId === note.id) {
-                              cancelEditingNote();
-                            }
-
+                            cancelEditingNote();
                             router.refresh();
                           });
                         }}
                       >
-                        <svg
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          className="h-4 w-4"
+                        <textarea
+                          value={editingNoteContent}
+                          onChange={(event) =>
+                            setEditingNoteContent(event.target.value)
+                          }
+                          rows={3}
+                          className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-2 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                        />
+                        {noteError ? (
+                          <p className="text-sm text-rose-600">{noteError}</p>
+                        ) : null}
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="submit"
+                            disabled={
+                              isNotesPending ||
+                              editingNoteContent.trim().length === 0
+                            }
+                            className="rounded-full bg-stone-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isNotesPending ? "Saving..." : "Save note"}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full border border-stone-200 px-4 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50"
+                            onClick={cancelEditingNote}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p className="text-sm leading-7 text-stone-700">
+                        {note.content}
+                      </p>
+                    )}
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <p className="text-xs text-stone-400">
+                        Updated {formatDate(note.updatedAt)}
+                      </p>
+                      <div className="flex items-center gap-2 opacity-0 transition group-hover/note:opacity-100 focus-within:opacity-100">
+                        <button
+                          type="button"
+                          className="grid h-7 w-7 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                          aria-label="Edit note"
+                          onClick={() =>
+                            startEditingNote(note.id, note.content)
+                          }
                         >
-                          <path
-                            d="M5.833 6.667h8.334M8.333 3.333h3.334M7.5 8.333v5M12.5 8.333v5M4.167 6.667l.833 9.166c.08.885.822 1.56 1.71 1.56h6.58c.888 0 1.63-.675 1.71-1.56l.833-9.166"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
+                          <svg
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            className="h-4 w-4"
+                          >
+                            <path
+                              d="M10.833 4.167 15.833 9.167M4.167 15.833l3.043-.608a2.5 2.5 0 0 0 1.276-.684l7.054-7.053a1.768 1.768 0 1 0-2.5-2.5L5.986 12.04a2.5 2.5 0 0 0-.684 1.277l-.608 2.516 2.473-.608Z"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="grid h-7 w-7 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                          aria-label="Delete note"
+                          onClick={() => deleteStageNote(note.id)}
+                        >
+                          <svg
+                            viewBox="0 0 20 20"
+                            fill="none"
+                            className="h-4 w-4"
+                          >
+                            <path
+                              d="M5.833 6.667h8.334M8.333 3.333h3.334M7.5 8.333v5M12.5 8.333v5M4.167 6.667l.833 9.166c.08.885.822 1.56 1.71 1.56h6.58c.888 0 1.63-.675 1.71-1.56l.833-9.166"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
+
+              <form
+                className="space-y-3 rounded-3xl border border-stone-200 bg-stone-50/80 p-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setNoteError(null);
+                  const form = event.currentTarget;
+                  const formData = new FormData(form);
+                  const payload = {
+                    content: String(formData.get("content") ?? "").trim(),
+                    stage: selectedStageKey,
+                  };
+
+                  startNotesTransition(async () => {
+                    const response = await fetch(
+                      `/api/applications/${application.id}/notes`,
+                      {
+                        headers: { "Content-Type": "application/json" },
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                      },
+                    );
+                    const data = (await response.json().catch(() => null)) as {
+                      error?: string;
+                    } | null;
+
+                    if (!response.ok) {
+                      setNoteError(data?.error ?? "Could not add stage note.");
+                      return;
+                    }
+
+                    form.reset();
+                    setIsNotesPanelOpen(true);
+                    router.refresh();
+                  });
+                }}
+              >
+                <textarea
+                  name="content"
+                  required
+                  rows={3}
+                  className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-2 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder={`Add a note for ${stageHeading.toLowerCase()} stage`}
+                />
+                {noteError ? (
+                  <p className="text-sm text-rose-600">{noteError}</p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={isNotesPending}
+                  className="rounded-full bg-stone-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isNotesPending ? "Saving note..." : "Add note"}
+                </button>
+              </form>
+            </div>
+          </section>
+        ) : null}
+
+        {isPending ? (
+          <p className="text-sm text-stone-500">Updating stage...</p>
+        ) : null}
+        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      </div>
+
+      {confirmDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close confirmation dialog"
+            onClick={() => setConfirmDialog(null)}
+            className="absolute inset-0 bg-stone-950/45 backdrop-blur-sm"
+          />
+
+          <div className="relative z-10 w-full max-w-md rounded-4xl border border-white/60 bg-[#fbf8f1] p-6 shadow-[0_30px_90px_rgba(25,23,20,0.22)] sm:p-7">
+            <div className="flex items-start justify-between gap-4 border-b border-stone-200 pb-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.26em] text-stone-400">
+                  Confirm action
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-950">
+                  {confirmDialog.title}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+                aria-label="Close confirmation dialog"
+              >
+                <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+                  <path
+                    d="M6 6l8 8M14 6l-8 8"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
             </div>
 
-            <form
-              className="space-y-3 rounded-3xl border border-stone-200 bg-stone-50/80 p-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setNoteError(null);
-                const form = event.currentTarget;
-                const formData = new FormData(form);
-                const payload = {
-                  content: String(formData.get("content") ?? "").trim(),
-                  stage: selectedStageKey,
-                };
+            <div className="mt-5 rounded-3xl border border-amber-200/80 bg-amber-50/70 p-4 text-sm leading-6 text-stone-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+              {confirmDialog.message}
+            </div>
 
-                startNotesTransition(async () => {
-                  const response = await fetch(
-                    `/api/applications/${application.id}/notes`,
-                    {
-                      headers: { "Content-Type": "application/json" },
-                      method: "POST",
-                      body: JSON.stringify(payload),
-                    },
-                  );
-                  const data = (await response.json().catch(() => null)) as {
-                    error?: string;
-                  } | null;
-
-                  if (!response.ok) {
-                    setNoteError(data?.error ?? "Could not add stage note.");
-                    return;
-                  }
-
-                  form.reset();
-                  setIsNotesPanelOpen(true);
-                  router.refresh();
-                });
-              }}
-            >
-              <textarea
-                name="content"
-                required
-                rows={3}
-                className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-2 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                placeholder={`Add a note for ${stageHeading.toLowerCase()} stage`}
-              />
-              {noteError ? (
-                <p className="text-sm text-rose-600">{noteError}</p>
-              ) : null}
+            <div className="mt-6 flex items-center justify-end gap-3">
               <button
-                type="submit"
-                disabled={isNotesPending}
-                className="rounded-full bg-stone-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
               >
-                {isNotesPending ? "Saving note..." : "Add note"}
+                Cancel
               </button>
-            </form>
+              <button
+                type="button"
+                onClick={handleConfirmDialogAction}
+                disabled={isPending || isNotesPending}
+                className="rounded-full border border-rose-200 bg-rose-100 px-4 py-2.5 text-sm font-medium text-rose-800 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
           </div>
-        </section>
+        </div>
       ) : null}
-
-      {isPending ? (
-        <p className="text-sm text-stone-500">Updating stage...</p>
-      ) : null}
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-    </div>
+    </>
   );
 }

@@ -134,6 +134,7 @@ export function ApplicationsFilters({
           <option value="all">All</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="accepted">Accepted</option>
         </select>
       </label>
 

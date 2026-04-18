@@ -12,6 +12,7 @@ export default async function LoginPage() {
 
   return (
     <AuthPanel
+      breadcrumbs={[{ label: "Home", href: "/" }, { label: "Sign in" }]}
       eyebrow="Welcome back"
       title="Sign in to your job search command center"
       description="Track every opportunity, keep each stage readable, and walk into interviews with all your context in one place."
