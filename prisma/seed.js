@@ -211,11 +211,13 @@ async function main() {
     update: {
       name: SEED_USER.name,
       password: hashedPassword,
+      emailVerifiedAt: new Date(),
     },
     create: {
       email: SEED_USER.email,
       name: SEED_USER.name,
       password: hashedPassword,
+      emailVerifiedAt: new Date(),
     },
   });
 

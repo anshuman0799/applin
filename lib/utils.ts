@@ -194,7 +194,7 @@ export function getDefaultInterviewRoundName(
     return DEFAULT_SINGLE_INTERVIEW_ROUND_NAME;
   }
 
-  return `Round ${index + 1}`;
+  return `Interview Round ${index + 1}`;
 }
 
 export function expandInterviewRounds(rounds: string[] | null | undefined) {

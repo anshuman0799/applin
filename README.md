@@ -44,11 +44,19 @@ cp .env.example .env.local
 
 Fill in the values in `.env.local`:
 
-| Variable          | Description                                             |
-| ----------------- | ------------------------------------------------------- |
-| `DATABASE_URL`    | PostgreSQL connection string (Supabase recommended)     |
-| `NEXTAUTH_SECRET` | Random secret — generate with `openssl rand -base64 32` |
-| `NEXTAUTH_URL`    | App URL (e.g. `http://localhost:3000`)                  |
+| Variable             | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string                            |
+| `AUTH_SECRET`        | Random secret — generate with `openssl rand -base64 32` |
+| `AUTH_URL`           | App URL (e.g. `http://localhost:3000`)                  |
+| `AUTH_GOOGLE_ID`     | Google OAuth client ID                                  |
+| `AUTH_GOOGLE_SECRET` | Google OAuth client secret                              |
+| `MAIL_FROM`          | From address for verification emails                    |
+| `SMTP_HOST`          | SMTP host for email delivery                            |
+| `SMTP_PORT`          | SMTP port                                               |
+| `SMTP_SECURE`        | `true` for SMTPS, `false` for STARTTLS/plain            |
+| `SMTP_USER`          | SMTP username                                           |
+| `SMTP_PASS`          | SMTP password                                           |
 
 ### 4. Run database migrations
 
@@ -69,6 +77,10 @@ This creates a default local user you can sign in with:
 | Email        | `postman-tester@example.com` |
 | Password     | `testpass123`                |
 | Display name | `Postman Tester`             |
+
+Google sign-in is optional. If you leave its env vars unset, the Google button stays hidden and the credentials flow continues to work on its own.
+
+Credential-based accounts now require email verification before sign-in. If SMTP is not configured, Applin logs the verification link to the server console so you can still test the flow locally.
 
 Default seeded applications:
 

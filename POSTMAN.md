@@ -21,9 +21,10 @@ Local database scripts:
 Protected routes use the Auth.js session cookie.
 
 1. Register a user with `POST /api/auth/register`
-2. Fetch CSRF token with `GET /api/auth/csrf`
-3. Sign in with `POST /api/auth/callback/credentials`
-4. Reuse the Postman cookie jar for protected requests
+2. Verify the email with the link sent by SMTP or logged by the dev server
+3. Fetch CSRF token with `GET /api/auth/csrf`
+4. Sign in with `POST /api/auth/callback/credentials`
+5. Reuse the Postman cookie jar for protected requests
 
 ## Public endpoints
 
